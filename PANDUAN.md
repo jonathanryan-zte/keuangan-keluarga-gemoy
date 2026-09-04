@@ -87,6 +87,12 @@ boleh dilewati dulu dan dikerjakan kapan saja nanti — bagian lain tetap jalan.
 4. Opsional: jalankan **`usulkanAnggaran`** untuk mengisi pagu bulan berjalan
    dari rata-rata belanja enam bulan terakhir.
 
+> **Catatan soal saldo saving.** Rantai saldo di `SAVING 2026` punya satu rumus
+> yang salah rujuk: baris ke-10 memakai `=D7+B10-C10`, jadi melompati baris 8
+> dan 9 (Rp600.000 + Rp200.000) dan semua baris di bawahnya mewarisi kekurangan
+> itu. Tab `Saving` yang baru menghitung ulang seluruh mutasi, sehingga saldonya
+> **Rp14.127.046**, bukan Rp13.327.046 seperti yang tertulis di tab lama.
+
 ---
 
 ## 3. Terbitkan Web App (3 menit)
@@ -189,6 +195,7 @@ tidak bisa dilakukan Apps Script.
 | "Tidak bisa menghubungi server" | Deployment belum dibuat, atau "Who has access" belum `Anyone`. Uji dengan membuka URL `/exec` di browser — harusnya muncul `{"ok":true,...}` |
 | "PIN salah" padahal benar | `setPin` belum pernah dijalankan, atau dijalankan di proyek Apps Script yang berbeda |
 | Perubahan kode `.gs` tidak terasa | Belum Deploy ulang sebagai **New version** |
+| Menekan Run tapi yang jalan fungsi lain | Pemilih fungsi di toolbar kadang cuma berubah tulisannya tanpa benar-benar ganti pilihan. Cara paling aman: klik dulu berkas yang memuat fungsinya di panel Files, lalu **cek riwayat di menu Executions** (ikon jam di kiri) untuk memastikan nama fungsi yang benar-benar dijalankan — jangan cuma percaya tulisan "Execution completed" |
 | Angka aplikasi beda dengan Sheet | Jalankan `segarkanRingkasan` di Apps Script |
 | Notifikasi tidak datang di iPhone | Aplikasi belum ditambahkan ke Layar Utama, atau izin belum diberikan |
 | Catatan tertahan "tertunda" | Sedang tanpa sinyal. Akan terkirim sendiri; bisa dipaksa lewat Pengaturan → Kirim catatan tertunda |
