@@ -2,3 +2,7 @@
 node_modules/
 worker/.wrangler/
 *.log
+
+# Izin tool per-mesin yang ditulis Claude Code sendiri. Isinya memuat alamat
+# Apps Script lengkap dengan token deployment-nya, dan repo ini publik.
+.claude/settings.local.json
