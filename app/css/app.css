@@ -234,32 +234,31 @@ body.kunci-gulir { position: fixed; left: 0; right: 0; overflow: hidden; }
   border-top: 1px solid var(--garis);
   padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
   animation: naik 0.22s cubic-bezier(0.32, 0.72, 0, 1);
-  transition: box-shadow 0.18s ease, border-color 0.18s ease;
+  transition: box-shadow 0.18s ease;
 }
 @media (min-width: 700px) {
   .sheet { max-width: 480px; border-radius: var(--r-besar); border: 1px solid var(--garis); }
 }
 
-/* Aksen sheet mengikuti sifat pengeluaran yang dipilih — merah untuk wajib,
-   hijau untuk keinginan. Bukan cuma garis tipis: seluruh latar form kebanjiran
-   rona lembut dari atas, plus vinyet dalam yang besar, supaya suasananya
-   kerasa tanpa harus melirik sakelarnya. */
+/* Aksen sheet mengikuti mode & sifat pengeluaran — merah untuk wajib, hijau
+   untuk keinginan, kuning untuk mode banyak (sifatnya beda-beda per baris,
+   jadi warnanya netral per mode, bukan per sifat). Tanpa garis tegas — cuma
+   rona lembut dari atas plus vinyet dalam yang besar, supaya suasananya
+   kerasa tanpa bikin sheet-nya terasa "dibingkai". */
 .sheet.sheet-wajib {
-  border-top-color: var(--wajib);
   background-image: radial-gradient(130% 65% at 50% -12%, rgba(226,73,71,0.28), transparent 62%), var(--latar);
-  box-shadow: inset 0 1px 0 0 rgba(226,73,71,0.55), inset 0 0 110px -25px rgba(226,73,71,0.65);
+  box-shadow: inset 0 0 110px -25px rgba(226,73,71,0.65);
 }
 .sheet.sheet-keinginan {
-  border-top-color: var(--keinginan);
   /* Hijau murni (bukan var(--keinginan) yang kehijau-tosca-an) — supaya rona
      ambient-nya kelihatan kontras di atas latar sheet yang biru muda, senada
      dengan kilau tombol sakelarnya sendiri. */
   background-image: radial-gradient(130% 65% at 50% -12%, rgba(22,163,74,0.32), transparent 62%), var(--latar);
-  box-shadow: inset 0 1px 0 0 rgba(22,163,74,0.6), inset 0 0 110px -25px rgba(22,163,74,0.75);
+  box-shadow: inset 0 0 110px -25px rgba(22,163,74,0.75);
 }
-@media (min-width: 700px) {
-  .sheet.sheet-wajib { border-color: var(--wajib); }
-  .sheet.sheet-keinginan { border-color: var(--keinginan); }
+.sheet.sheet-banyak {
+  background-image: radial-gradient(130% 65% at 50% -12%, rgba(245,158,11,0.3), transparent 62%), var(--latar);
+  box-shadow: inset 0 0 110px -25px rgba(245,158,11,0.7);
 }
 .sheet .pegangan {
   width: 38px; height: 4px; border-radius: 999px; background: var(--tinta-samar);

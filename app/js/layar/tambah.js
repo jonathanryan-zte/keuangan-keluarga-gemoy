@@ -39,11 +39,15 @@ export function bukaTambah(awal = null) {
       wadah.appendChild(f.mode === 'banyak'
         ? formBanyak(f, gambar, tutupSheet)
         : isiForm(f, gambar, tutupSheet));
-      // Aksen warna di seluruh sheet mengikuti sifat pengeluaran — hanya
-      // masuk akal saat satu sifat berlaku untuk seluruh form (mode satu,
-      // bukan pemasukan). Mode banyak punya sifat per baris.
-      badan.classList.toggle('sheet-wajib', f.mode === 'satu' && f.jenis !== 'PEMASUKAN' && f.sifat === 'WAJIB');
-      badan.classList.toggle('sheet-keinginan', f.mode === 'satu' && f.jenis !== 'PEMASUKAN' && f.sifat === 'KEINGINAN');
+      // Aksen warna di seluruh sheet: kuning untuk mode banyak (sifatnya
+      // beda-beda per baris, jadi tak ada satu warna sifat yang mewakili),
+      // atau ikut sifat pengeluaran saat mode satu & bukan pemasukan.
+      const aksen = f.mode === 'banyak' ? 'sheet-banyak'
+        : f.jenis === 'PEMASUKAN' ? null
+        : f.sifat === 'WAJIB' ? 'sheet-wajib' : 'sheet-keinginan';
+      for (const kelas of ['sheet-wajib', 'sheet-keinginan', 'sheet-banyak']) {
+        badan.classList.toggle(kelas, kelas === aksen);
+      }
     };
     gambar();
     return wadah;
