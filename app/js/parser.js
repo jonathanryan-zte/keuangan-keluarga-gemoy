@@ -160,3 +160,34 @@ function hariTerakhir(indeks) {
   const mundur = (d.getDay() - indeks + 7) % 7 || 7;
   return geserHari(hariIni(), -mundur);
 }
+
+// ------------------------------------------------------------- banyak baris --
+
+/** Penanda daftar di awal baris: "- ", "• ", "1. ", "3) ".
+ *  Spasi sesudahnya wajib, supaya "1,5jt tennis" dan "3/4 galon" tidak terpotong. */
+const PENANDA_DAFTAR = /^\s*(?:[-•*·–—]|\d{1,2}[.)])\s+/;
+
+const BATAS_BARIS = 40;
+
+/**
+ * Membaca banyak baris sekaligus. Tiap baris dilewatkan ke `baca()` yang sama,
+ * jadi tebakan tanggal dan kategorinya persis seperti mode satu transaksi.
+ * Teks asli tiap baris ikut dibawa di `mentah` supaya baris yang gagal terbaca
+ * masih bisa ditampilkan apa adanya, bukan hilang diam-diam.
+ *
+ * @param {string} teks
+ * @param {{riwayat?: Array, bulanAktif?: string}} opsi
+ * @returns {Array<object>}
+ */
+export function bacaBanyak(teks, opsi = {}) {
+  return String(teks || '')
+    .split(/\r?\n/)
+    .map((b) => b.replace(PENANDA_DAFTAR, '').trim())
+    .filter(Boolean)
+    .slice(0, BATAS_BARIS)
+    .map((mentah) => ({ mentah, ...(baca(mentah, opsi) || kosong()) }));
+}
+
+function kosong() {
+  return { tanggal: hariIni(), nominal: null, item: '', kategori: null, pastiTanggal: false };
+}

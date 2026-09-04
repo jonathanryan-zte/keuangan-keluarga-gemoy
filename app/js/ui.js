@@ -102,7 +102,7 @@ export function sheet(judul, isi, opsi = {}) {
   function padaTombol(e) { if (e.key === 'Escape') tutup(); }
 
   document.addEventListener('keydown', padaTombol);
-  badan.appendChild(isi instanceof Function ? isi(tutup) : isi);
+  badan.appendChild(isi instanceof Function ? isi(tutup, badan) : isi);
   document.body.appendChild(tirai);
   return tutup;
 }

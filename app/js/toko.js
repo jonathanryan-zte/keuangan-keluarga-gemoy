@@ -64,6 +64,11 @@ export function terapkanMuatan(d) {
   simpanCache();
 }
 
+/** Id transaksi. Satu tempat, dipakai form satuan, borongan, dan centang rutin. */
+export function idTransaksi() {
+  return `trx-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 /** Sisipkan/ganti satu transaksi di memori supaya tampilan langsung berubah. */
 export function taruhTransaksi(t) {
   const i = st.transaksi.findIndex((x) => x.id === t.id);
