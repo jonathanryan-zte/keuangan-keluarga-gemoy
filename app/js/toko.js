@@ -158,17 +158,22 @@ export function laju(bulan = st.bulan) {
   return { hari, hariBerjalan, sisaHari, rata, perkiraanAkhir, amanSampai, iniBulanBerjalan };
 }
 
+/** Bulan bisa tiba sebagai '2026-09' atau tanggal penuh; ambil 7 huruf awal. */
+function bulanSaja(v) {
+  return String(v || '').slice(0, 7);
+}
+
 export function anggaranBulan(bulan = st.bulan) {
   const pakai = new Map(perKategori(bulan).map((x) => [x.kategori, x.nominal]));
   const pagu = new Map(
-    st.anggaran.filter((a) => a.bulan === bulan).map((a) => [a.kategori, a.pagu])
+    st.anggaran.filter((a) => bulanSaja(a.bulan) === bulan).map((a) => [a.kategori, a.pagu])
   );
   // Kalau bulan ini belum punya pagu, pakai pagu bulan terakhir yang ada.
   if (!pagu.size) {
-    const bulanPagu = [...new Set(st.anggaran.map((a) => a.bulan))]
-      .filter((b) => b < bulan).sort().pop();
+    const bulanPagu = [...new Set(st.anggaran.map((a) => bulanSaja(a.bulan)))]
+      .filter((b) => b && b < bulan).sort().pop();
     if (bulanPagu) {
-      st.anggaran.filter((a) => a.bulan === bulanPagu)
+      st.anggaran.filter((a) => bulanSaja(a.bulan) === bulanPagu)
         .forEach((a) => pagu.set(a.kategori, a.pagu));
     }
   }
@@ -211,7 +216,7 @@ export function hitungTermin(r, bulan) {
   if (r.tipe !== 'cicilan' || !r.totalTermin || !r.mulai) {
     return { terminKe: 0, selesai: false, bulanLunas: '' };
   }
-  const mulai = r.mulai.slice(0, 7);
+  const mulai = bulanSaja(r.mulai);
   const ke = selisihBulan(mulai, bulan) + 1;
   return {
     terminKe: ke,

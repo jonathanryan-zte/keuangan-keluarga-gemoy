@@ -52,6 +52,7 @@ function hitungTermin_(r, bulan) {
   if (r.tipe !== 'cicilan' || !r.totalTermin) {
     return { terminKe: 0, selesai: false, bulanLunas: '' };
   }
+  // r.mulai sudah dinormalkan keBulan_() oleh bentukRutin_.
   var mulai = String(r.mulai || '').substring(0, 7);
   if (!mulai) return { terminKe: 0, selesai: false, bulanLunas: '' };
   var selisih = selisihBulan_(mulai, bulan) + 1;

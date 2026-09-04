@@ -176,6 +176,25 @@ function bulanDari_(tanggal) {
   return t ? t.substring(0, 7) : '';
 }
 
+/**
+ * Baca kolom bulan sebagai 'yyyy-MM'.
+ *
+ * Perlu penjaga sendiri karena Google Sheets otomatis mengubah teks "2026-09"
+ * menjadi tanggal 1 September 2026 begitu ditulis ke sel. Kalau dibaca apa
+ * adanya, String(nilai) menghasilkan "Tue Sep 01 2026 ..." dan pencocokan pagu
+ * anggaran maupun hitungan termin cicilan jadi tidak pernah ketemu.
+ */
+function keBulan_(nilai) {
+  if (nilai instanceof Date) return Utilities.formatDate(nilai, zona_(), 'yyyy-MM');
+  if (typeof nilai === 'number') {
+    var t = keTanggal_(nilai);
+    return t ? t.substring(0, 7) : '';
+  }
+  var s = String(nilai || '').trim();
+  var m = s.match(/^(\d{4})-(\d{2})/);
+  return m ? m[0] : '';
+}
+
 function sekarang_() {
   return Utilities.formatDate(new Date(), zona_(), "yyyy-MM-dd'T'HH:mm:ss");
 }
@@ -370,7 +389,7 @@ function muatAwal_(data) {
     bulanTersedia: bulanTersedia_(semua),
     rutin: baca_(TAB.RUTIN).map(bentukRutin_),
     anggaran: baca_(TAB.ANGGARAN).map(function (a) {
-      return { bulan: String(a.bulan), kategori: String(a.kategori), pagu: angka_(a.pagu) };
+      return { bulan: keBulan_(a.bulan), kategori: String(a.kategori), pagu: angka_(a.pagu) };
     }),
     saving: baca_(TAB.SAVING)
       .filter(function (s) { return String(s.status || 'aktif') !== 'dihapus'; })
@@ -411,7 +430,7 @@ function bentukRutin_(r) {
     nominal: angka_(r.nominal),
     sifat: String(r.sifat || SIFAT.WAJIB),
     hariJatuhTempo: angka_(r.hari_jatuh_tempo) || 1,
-    mulai: String(r.mulai || ''),
+    mulai: keBulan_(r.mulai),
     totalTermin: angka_(r.total_termin),
     terminTerbayar: angka_(r.termin_terbayar),
     aktif: String(r.aktif) !== 'false' && r.aktif !== false
@@ -604,11 +623,11 @@ function simpanAnggaran_(data) {
     var sh = tab_(TAB.ANGGARAN);
     var ada = {};
     baca_(TAB.ANGGARAN).forEach(function (a) {
-      ada[String(a.bulan) + '|' + String(a.kategori)] = a;
+      ada[keBulan_(a.bulan) + '|' + String(a.kategori)] = a;
     });
     var baru = [];
     masuk.forEach(function (m) {
-      var k = String(m.bulan) + '|' + String(m.kategori);
+      var k = keBulan_(m.bulan) + '|' + String(m.kategori);
       if (ada[k]) sh.getRange(ada[k]._baris, 3).setValue(angka_(m.pagu));
       else baru.push({ bulan: m.bulan, kategori: m.kategori, pagu: angka_(m.pagu) });
     });
@@ -752,7 +771,17 @@ function formatTabTransaksi_() {
   sh.getRange('F:F').setNumberFormat('#,##0');
   sh.setColumnWidth(5, 240);
   sh.setColumnWidth(8, 220);
+
   var svg = tab_(TAB.SAVING);
   svg.getRange('B:B').setNumberFormat('yyyy-mm-dd');
   svg.getRange('C:E').setNumberFormat('#,##0');
+
+  // Kolom bulan ('2026-09') dan bulan mulai cicilan harus tetap teks. Tanpa
+  // ini Google Sheets mengubahnya jadi tanggal, dan pencocokan pagu anggaran
+  // serta hitungan termin cicilan langsung meleset.
+  tab_(TAB.ANGGARAN).getRange('A:A').setNumberFormat('@');
+  tab_(TAB.ANGGARAN).getRange('C:C').setNumberFormat('#,##0');
+  tab_(TAB.RINGKASAN).getRange('A:A').setNumberFormat('@');
+  tab_(TAB.RUTIN).getRange('I:I').setNumberFormat('@');
+  tab_(TAB.RUTIN).getRange('F:F').setNumberFormat('#,##0');
 }
