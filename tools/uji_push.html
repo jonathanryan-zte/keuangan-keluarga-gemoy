@@ -1,0 +1,73 @@
+<!doctype html><meta charset="utf-8"><title>Uji kriptografi push KKG</title>
+<!--
+  Uji bolak-balik enkripsi Web Push (RFC 8291) dan tanda tangan VAPID.
+  Membuat pasangan kunci palsu seperti yang dibuat browser saat berlangganan,
+  menyuruh kode Worker mengenkripsi, lalu membukanya kembali dari sisi
+  "perangkat". Kalau isinya kembali utuh, berarti penurunan kuncinya benar.
+
+  Cara pakai (butuh server lokal karena memakai modul ES):
+      cd "Keuangan Keluarga" && python3 -m http.server 8000
+      buka http://localhost:8000/tools/uji_push.html
+-->
+<pre id="out">menjalankan…</pre>
+<script type="module">
+import { enkripsi, buatVapidJwt, b64url, dariB64url, hkdf } from '../worker/src/index.js';
+const catat = [];
+const ok = (nama, lulus, ket='') => catat.push(`${lulus ? 'LULUS' : 'GAGAL'}  ${nama}${ket ? ' — ' + ket : ''}`);
+const teks = (s) => new TextEncoder().encode(s);
+const gabung = (...p) => { const t = p.reduce((a,x)=>a+x.length,0), r = new Uint8Array(t); let i=0; for (const x of p){r.set(x,i);i+=x.length;} return r; };
+
+try {
+  // --- 1. Enkripsi RFC 8291: dienkripsi lalu didekripsi kembali -------------
+  // Peran "perangkat": persis yang dibuat browser saat pushManager.subscribe().
+  const ua = await crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'}, true, ['deriveBits']);
+  const uaPub = new Uint8Array(await crypto.subtle.exportKey('raw', ua.publicKey));
+  const auth = crypto.getRandomValues(new Uint8Array(16));
+  const langganan = { p256dh: b64url(uaPub), auth: b64url(auth) };
+
+  const pesanAsli = JSON.stringify({ judul: 'Uji', badan: 'Halo dari KKG', layar: 'rutin' });
+  const badan = await enkripsi(teks(pesanAsli), langganan);
+
+  // Bongkar kepala rekaman
+  const garam = badan.slice(0, 16);
+  const ukuranRekaman = new DataView(badan.buffer, badan.byteOffset).getUint32(16);
+  const panjangKunci = badan[20];
+  const asPub = badan.slice(21, 21 + panjangKunci);
+  const sandi = badan.slice(21 + panjangKunci);
+  ok('kepala: panjang kunci 65', panjangKunci === 65, String(panjangKunci));
+  ok('kepala: ukuran rekaman 4096', ukuranRekaman === 4096, String(ukuranRekaman));
+
+  // Turunkan kunci dari sisi perangkat
+  const asPubKey = await crypto.subtle.importKey('raw', asPub, {name:'ECDH',namedCurve:'P-256'}, false, []);
+  const ecdh = new Uint8Array(await crypto.subtle.deriveBits({name:'ECDH', public: asPubKey}, ua.privateKey, 256));
+  const ikm = await hkdf(auth, ecdh, gabung(teks('WebPush: info'), new Uint8Array([0]), uaPub, asPub), 32);
+  const cek = await hkdf(garam, ikm, teks('Content-Encoding: aes128gcm\0'), 16);
+  const nonce = await hkdf(garam, ikm, teks('Content-Encoding: nonce\0'), 12);
+  const kunci = await crypto.subtle.importKey('raw', cek, 'AES-GCM', false, ['decrypt']);
+  const buka = new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM', iv: nonce}, kunci, sandi));
+  const penanda = buka[buka.length-1];
+  const hasil = new TextDecoder().decode(buka.slice(0, -1));
+  ok('penanda rekaman terakhir = 2', penanda === 2, String(penanda));
+  ok('isi pesan utuh setelah dibuka', hasil === pesanAsli, hasil.slice(0,40));
+
+  // --- 2. JWT VAPID: tanda tangan bisa diverifikasi ------------------------
+  const vapid = await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'}, true, ['sign','verify']);
+  const vPubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', vapid.publicKey));
+  const vJwk = await crypto.subtle.exportKey('jwk', vapid.privateKey);
+  const env = { VAPID_PUBLIK: b64url(vPubRaw), VAPID_PRIVAT: vJwk.d, SURAT_KONTAK: 'mailto:ryan@example.com' };
+
+  const jwt = await buatVapidJwt('https://fcm.googleapis.com', env);
+  const [h, c, sg] = jwt.split('.');
+  const sah = await crypto.subtle.verify({name:'ECDSA', hash:'SHA-256'}, vapid.publicKey,
+    dariB64url(sg), teks(h + '.' + c));
+  ok('JWT punya 3 bagian', jwt.split('.').length === 3);
+  ok('tanda tangan JWT sah', sah);
+  const klaim = JSON.parse(new TextDecoder().decode(dariB64url(c)));
+  ok('aud = origin endpoint', klaim.aud === 'https://fcm.googleapis.com', klaim.aud);
+  ok('exp di bawah 24 jam', klaim.exp - Math.floor(Date.now()/1000) <= 86400);
+  ok('sub terisi', !!klaim.sub, klaim.sub);
+} catch (e) {
+  catat.push('GAGAL TOTAL — ' + e.name + ': ' + e.message + '\n' + e.stack);
+}
+document.getElementById('out').textContent = catat.join('\n');
+</script>

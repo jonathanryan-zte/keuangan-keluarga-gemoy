@@ -1,0 +1,9 @@
+name = "kkg-push"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# Rahasia dipasang lewat perintah, bukan ditulis di berkas ini:
+#   npx wrangler secret put VAPID_PUBLIK
+#   npx wrangler secret put VAPID_PRIVAT
+#   npx wrangler secret put RAHASIA_BERSAMA
+#   npx wrangler secret put SURAT_KONTAK

@@ -1,0 +1,45 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Buat kunci VAPID — KKG</title>
+<!--
+  Membuat sepasang kunci VAPID untuk notifikasi push.
+  Buka berkas ini langsung di browser (klik dua kali juga bisa), lalu salin
+  ketiga nilainya sesuai petunjuk di PANDUAN.md bagian "Notifikasi".
+  Kuncinya dibuat di dalam browser Anda sendiri dan tidak dikirim ke mana pun.
+-->
+<style>
+  body { font: 15px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+         max-width: 640px; margin: 40px auto; padding: 0 20px; color: #0B2A35; }
+  h1 { font-size: 20px; }
+  label { display: block; margin-top: 18px; font-weight: 600; font-size: 13px; }
+  textarea { width: 100%; height: 62px; font-family: ui-monospace, Menlo, monospace;
+             font-size: 12px; padding: 10px; border: 1px solid #cbd5dd; border-radius: 10px; }
+  p.ket { color: #5A7580; font-size: 13px; }
+  button { margin-top: 20px; padding: 11px 18px; border: 0; border-radius: 10px;
+           background: linear-gradient(135deg,#F0916B,#D97757); color: #fff;
+           font-weight: 650; font-size: 15px; cursor: pointer; }
+</style>
+<h1>Kunci VAPID untuk KKG</h1>
+<p class="ket">Kunci dibuat di browser ini dan tidak pernah dikirim ke mana pun.
+Kunci privat hanya ditempel ke Cloudflare Worker; kunci publik boleh dilihat siapa saja.</p>
+<button id="buat">Buat kunci baru</button>
+<div id="hasil" hidden>
+  <label>VAPID_PUBLIK <span class="ket">— untuk Worker dan untuk tab Pengaturan Sheet (kunci <code>vapid_publik</code>)</span></label>
+  <textarea id="pub" readonly></textarea>
+  <label>VAPID_PRIVAT <span class="ket">— hanya untuk Worker. Jangan ditempel di mana pun selain itu.</span></label>
+  <textarea id="priv" readonly></textarea>
+  <label>RAHASIA_BERSAMA <span class="ket">— untuk Worker dan untuk kunci <code>worker_rahasia</code> di tab Pengaturan</span></label>
+  <textarea id="rahasia" readonly></textarea>
+</div>
+<script type="module">
+const b64url = (b) => btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+document.getElementById('buat').onclick = async () => {
+  const pasangan = await crypto.subtle.generateKey({ name:'ECDSA', namedCurve:'P-256' }, true, ['sign','verify']);
+  const pub = new Uint8Array(await crypto.subtle.exportKey('raw', pasangan.publicKey));
+  const jwk = await crypto.subtle.exportKey('jwk', pasangan.privateKey);
+  document.getElementById('pub').value = b64url(pub);
+  document.getElementById('priv').value = jwk.d;
+  document.getElementById('rahasia').value = b64url(crypto.getRandomValues(new Uint8Array(24)));
+  document.getElementById('hasil').hidden = false;
+};
+</script>

@@ -1,0 +1,178 @@
+/* ============================================================================
+   Keuangan Keluarga Gemoy — token tema.
+   Terang & gelap mengikuti tema HP lewat prefers-color-scheme. Tidak ada
+   tombol ganti tema: permintaannya memang ikut sistem.
+   ========================================================================= */
+
+:root {
+  color-scheme: light dark;
+
+  --tosca: #14B8C4;
+  --tosca-terang: #22D3EE;
+  --langit: #38BDF8;
+  --claude-1: #F0916B;
+  --claude-2: #D97757;
+  --claude: linear-gradient(135deg, #F0916B 0%, #D97757 100%);
+
+  /* WAJIB merah, KEINGINAN hijau — sesuai permintaan.
+     Hijaunya digeser sedikit ke arah toska (#009C86, bukan hijau murni).
+     Alasannya diuji, bukan selera: merah lawan hijau murni praktis tidak bisa
+     dibedakan oleh buta warna merah-hijau (jenis tersering) — jarak warnanya
+     cuma 1.8 dari ambang 8. Dengan hijau-toska jaraknya jadi 11.6, dan bagi
+     mata normal warnanya tetap terbaca "hijau". Meski begitu, warna tidak
+     pernah jadi satu-satunya penanda: selalu ada tulisan WAJIB / KEINGINAN. */
+  --wajib: #E24947;
+  --wajib-lembut: rgba(226, 73, 71, 0.14);
+  --keinginan: #009C86;
+  --keinginan-lembut: rgba(0, 156, 134, 0.14);
+
+  /* --- warna grafik. Semua lolos scripts/validate_palette.js (pita
+     kecerahan, lantai kroma, pemisahan buta warna, kontras) di kedua tema. --- */
+  --viz-latar: #F4FAFC;
+  --viz-1: #0698A4;   /* pemasukan  */
+  --viz-2: #C56A3E;   /* pengeluaran */
+  --viz-3: #8771DE;   /* sisa / saving */
+  --viz-r1: #6EB9BF;  /* tangga satu warna, pucat -> pekat */
+  --viz-r2: #44A5AC;
+  --viz-r3: #00919A;
+  --viz-r4: #007D87;
+  --viz-r5: #006976;
+  --viz-grid: rgba(11, 42, 53, 0.10);
+
+  --latar: linear-gradient(170deg, #E9F7FB 0%, #F6FBFD 52%, #FDF3EE 100%);
+  --latar-padat: #EFF8FB;
+  --kaca: rgba(255, 255, 255, 0.58);
+  --kaca-pekat: rgba(255, 255, 255, 0.78);
+  --garis: rgba(255, 255, 255, 0.72);
+  --garis-halus: rgba(11, 42, 53, 0.08);
+  --tinta: #0B2A35;
+  --tinta-lembut: #5A7580;
+  --tinta-samar: #8CA5AF;
+  --bayang: 0 1px 2px rgba(11, 42, 53, 0.05), 0 12px 32px -8px rgba(11, 42, 53, 0.14);
+  --bayang-naik: 0 2px 6px rgba(11, 42, 53, 0.08), 0 22px 48px -12px rgba(11, 42, 53, 0.24);
+
+  --r-kecil: 14px;
+  --r-sedang: 20px;
+  --r-besar: 26px;
+  --sela: 14px;
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+  --font-angka: ui-rounded, "SF Pro Rounded", -apple-system, "Segoe UI",
+                Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --latar: linear-gradient(170deg, #05161F 0%, #08202B 52%, #1A1210 100%);
+    --latar-padat: #071B24;
+    --kaca: rgba(255, 255, 255, 0.07);
+    --kaca-pekat: rgba(255, 255, 255, 0.11);
+    --garis: rgba(255, 255, 255, 0.13);
+    --garis-halus: rgba(255, 255, 255, 0.09);
+    --tinta: #E8F4F8;
+    --tinta-lembut: #93AEB9;
+    --tinta-samar: #6A8894;
+    --bayang: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px -8px rgba(0, 0, 0, 0.55);
+    --bayang-naik: 0 2px 6px rgba(0, 0, 0, 0.5), 0 22px 48px -12px rgba(0, 0, 0, 0.7);
+    --wajib: #E1514E;
+    --wajib-lembut: rgba(225, 81, 78, 0.18);
+    --keinginan: #1D9E89;
+    --keinginan-lembut: rgba(29, 158, 137, 0.18);
+
+    /* Tangga gelap disusun ulang untuk latar gelap, bukan sekadar dibalik. */
+    --viz-latar: #0E2632;
+    --viz-1: #25A4B1;
+    --viz-2: #D0774E;
+    --viz-3: #927FE7;
+    --viz-r1: #00656D;
+    --viz-r2: #007F88;
+    --viz-r3: #009BA4;
+    --viz-r4: #2DB7C1;
+    --viz-r5: #4CD4DE;
+    --viz-grid: rgba(255, 255, 255, 0.12);
+  }
+}
+
+/* ------------------------------------------------------------------ dasar -- */
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--tinta);
+  background: var(--latar-padat);
+  background-image: var(--latar);
+  background-attachment: fixed;
+  font-size: 15px;
+  line-height: 1.45;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: calc(84px + env(safe-area-inset-bottom));
+}
+
+/* Panel kaca — inti bahasa visualnya. */
+.kaca {
+  background: var(--kaca);
+  border: 1px solid var(--garis);
+  border-radius: var(--r-besar);
+  box-shadow: var(--bayang);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+}
+
+/* Sebagian orang mematikan efek transparansi di pengaturan aksesibilitas HP.
+   Hormati itu: kaca jadi panel padat, bukan kabur yang bikin teks susah dibaca. */
+@media (prefers-reduced-transparency: reduce) {
+  .kaca {
+    background: var(--kaca-pekat);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.015em; }
+h1 { font-size: 21px; }
+h2 { font-size: 17px; }
+h3 { font-size: 14px; color: var(--tinta-lembut); font-weight: 600; }
+p { margin: 0; }
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+button { cursor: pointer; border: none; background: none; padding: 0; }
+
+/* Angka rupiah selalu pakai varian membulat + lebar digit tetap supaya
+   deretannya tidak bergoyang saat berubah. */
+.angka {
+  font-family: var(--font-angka);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.samar { color: var(--tinta-samar); }
+.lembut { color: var(--tinta-lembut); }
+.kecil { font-size: 13px; }
+.mini { font-size: 11.5px; }
+.tebal { font-weight: 650; }
+
+.sr {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
