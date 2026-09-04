@@ -235,7 +235,11 @@ body.kunci-gulir { position: fixed; left: 0; right: 0; overflow: hidden; }
   padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
   animation: naik 0.22s cubic-bezier(0.32, 0.72, 0, 1);
   transition: box-shadow 0.18s ease;
+  scrollbar-width: thin; scrollbar-color: var(--tinta-samar) transparent;
 }
+.sheet::-webkit-scrollbar { width: 5px; }
+.sheet::-webkit-scrollbar-track { background: transparent; }
+.sheet::-webkit-scrollbar-thumb { background: var(--tinta-samar); border-radius: 999px; }
 @media (min-width: 700px) {
   .sheet { max-width: 480px; border-radius: var(--r-besar); border: 1px solid var(--garis); }
 }
