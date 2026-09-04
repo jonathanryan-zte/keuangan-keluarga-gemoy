@@ -83,6 +83,28 @@ export function roti(pesan, jenis) {
   waktuRoti = setTimeout(() => el.remove(), 2600);
 }
 
+// Latar belakang dikunci selagi ada sheet terbuka. Terhitung, karena sheet
+// bisa bertumpuk (mis. konfirmasi hapus di atas sheet rincian) — baru
+// dibuka lagi setelah yang paling akhir benar-benar tertutup.
+let jumlahKunciGulir = 0;
+let posisiGulirSebelumKunci = 0;
+function kunciGulirLatar() {
+  if (jumlahKunciGulir === 0) {
+    posisiGulirSebelumKunci = window.scrollY;
+    document.body.style.top = `-${posisiGulirSebelumKunci}px`;
+    document.body.classList.add('kunci-gulir');
+  }
+  jumlahKunciGulir++;
+}
+function bukaGulirLatar() {
+  jumlahKunciGulir = Math.max(0, jumlahKunciGulir - 1);
+  if (jumlahKunciGulir === 0) {
+    document.body.classList.remove('kunci-gulir');
+    document.body.style.top = '';
+    window.scrollTo(0, posisiGulirSebelumKunci);
+  }
+}
+
 /** Panel yang naik dari bawah layar. Tutup lewat tombol, latar, atau Esc. */
 export function sheet(judul, isi, opsi = {}) {
   const badan = h('div.sheet', { role: 'dialog', 'aria-modal': 'true' },
@@ -94,15 +116,28 @@ export function sheet(judul, isi, opsi = {}) {
   );
   const tirai = h('div.tirai', { onclick: (e) => { if (e.target === tirai) tutup(); } }, badan);
 
+  let sedangTutup = false;
+  let sudahBeres = false;
   function tutup() {
-    tirai.remove();
+    if (sedangTutup) return;
+    sedangTutup = true;
     document.removeEventListener('keydown', padaTombol);
+    tirai.classList.add('menutup');
+    tirai.addEventListener('animationend', selesai, { once: true });
+    setTimeout(selesai, 260);
+  }
+  function selesai() {
+    if (sudahBeres) return;
+    sudahBeres = true;
+    tirai.remove();
+    bukaGulirLatar();
     opsi.onTutup?.();
   }
   function padaTombol(e) { if (e.key === 'Escape') tutup(); }
 
   document.addEventListener('keydown', padaTombol);
   badan.appendChild(isi instanceof Function ? isi(tutup, badan) : isi);
+  kunciGulirLatar();
   document.body.appendChild(tirai);
   return tutup;
 }
