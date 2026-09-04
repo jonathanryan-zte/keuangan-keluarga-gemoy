@@ -31,19 +31,17 @@ boleh dilewati dulu dan dikerjakan kapan saja nanti — bagian lain tetap jalan.
    Setelah selesai akan muncul tujuh tab baru: `Transaksi`, `Rutin`, `Anggaran`,
    `Saving`, `Perangkat`, `Pengaturan`, `Ringkasan`. Tab lama Anda tidak disentuh.
 
-5. Tetapkan PIN keluarga. Di editor, ubah sementara baris paling bawah mana pun
-   menjadi pemanggilan berikut — atau lebih mudah: buka menu fungsi, pilih
-   `setPin`, lalu jalankan lewat **Run**; kalau diminta argumen, ketik langsung
-   di editor sebuah fungsi kecil seperti ini lalu jalankan fungsi itu:
+5. Tetapkan PIN keluarga. **Jangan menjalankan `setPin` langsung dari tombol
+   Run** — fungsi itu butuh argumen, sedangkan tombol Run memanggilnya tanpa
+   argumen, jadi yang muncul hanya pesan galat. Caranya:
 
-   ```javascript
-   function pasangPinSaya() {
-     return setPin('123456');   // ganti dengan PIN pilihan Anda, 4-6 angka
-   }
-   ```
+   a. Buka tab **`Pengaturan`** di Spreadsheet, cari baris berkunci
+      **`pin_baru`**, lalu tulis PIN pilihan Anda (4–6 angka) di kolom sebelahnya.
+   b. Kembali ke editor Apps Script, jalankan fungsi **`pasangPinDariSheet`**.
+   c. Selesai — PIN tersimpan dalam bentuk teracak, dan sel `pin_baru`
+      dikosongkan sendiri supaya angkanya tidak tertinggal di spreadsheet.
 
-   Setelah berhasil, **hapus fungsi itu** supaya PIN-nya tidak tertinggal
-   sebagai teks di dalam skrip.
+   Mau ganti PIN nanti? Ulangi tiga langkah yang sama.
 
 6. Isi daftar tagihan & cicilan awal: pilih fungsi **`isiRutinAwal`** → **Run**.
    Angkanya diambil dari Sheet Anda per September 2026; nanti bisa diubah dari

@@ -59,7 +59,9 @@ var PENGATURAN_BAWAAN = {
   zona_waktu: 'Asia/Jakarta',
   worker_url: '',
   worker_rahasia: '',
-  vapid_publik: ''
+  vapid_publik: '',
+  // Tempat menulis PIN baru dari dalam Sheet. Lihat pasangPinDariSheet().
+  pin_baru: ''
 };
 
 // ---------------------------------------------------------------- utilitas --
@@ -249,13 +251,40 @@ function hashPin_(pin, garam) {
   return h;
 }
 
+/**
+ * Pasang PIN. Butuh argumen, jadi TIDAK bisa dijalankan langsung dari tombol
+ * Run — pakai pasangPinDariSheet() untuk itu.
+ */
 function setPin(pin) {
-  if (!pin || String(pin).length < 4) throw new Error('PIN minimal 4 digit.');
+  if (pin === undefined || pin === null || pin === '') {
+    throw new Error('setPin butuh argumen, dan tombol Run memanggilnya tanpa argumen. ' +
+      'Pakai pasangPinDariSheet(): tulis PIN di tab Pengaturan baris "pin_baru", lalu jalankan fungsi itu.');
+  }
+  if (String(pin).length < 4) throw new Error('PIN minimal 4 digit.');
   var garam = acak_(24);
   setelPengaturan_('pin_garam', garam);
   setelPengaturan_('pin_hash', hashPin_(String(pin), garam));
   if (!pengaturan_().rahasia_token) setelPengaturan_('rahasia_token', acak_(48));
   return 'PIN tersimpan.';
+}
+
+/**
+ * Pasang PIN tanpa menaruhnya di dalam kode.
+ *
+ * Caranya: tulis PIN di tab `Pengaturan`, baris berkunci `pin_baru`, lalu
+ * jalankan fungsi ini. Karena tidak butuh argumen, fungsi ini aman dijalankan
+ * dari tombol Run. Setelah PIN di-hash, sel `pin_baru` langsung dikosongkan
+ * supaya angkanya tidak tertinggal sebagai teks di spreadsheet.
+ */
+function pasangPinDariSheet() {
+  var pin = String(pengaturan_().pin_baru || '').trim();
+  if (!/^[0-9]{4,6}$/.test(pin)) {
+    throw new Error('Belum ada PIN yang sah. Buka tab Pengaturan, tulis 4-6 angka ' +
+      'di baris berkunci "pin_baru", lalu jalankan pasangPinDariSheet() lagi.');
+  }
+  setPin(pin);
+  setelPengaturan_('pin_baru', '');
+  return 'PIN tersimpan. Sel pin_baru sudah dikosongkan kembali.';
 }
 
 function buatToken_(rahasia) {
