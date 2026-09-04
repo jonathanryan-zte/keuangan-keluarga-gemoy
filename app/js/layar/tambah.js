@@ -1,8 +1,10 @@
 import { h, sheet, roti, ikon, kosongkan } from '../ui.js';
 import { rp, bacaNominal, hariIni, tanggalPanjang } from '../rupiah.js';
 import { baca as bacaTeks, tebakKategori, geserHari } from '../parser.js';
-import { st, taruhTransaksi, umumkan, itemSering } from '../toko.js';
+import { st, taruhTransaksi, umumkan, itemSering, idTransaksi } from '../toko.js';
 import { kirimTransaksi } from '../api.js';
+import { lokal } from '../simpanan.js';
+import { formBanyak } from './tambah-banyak.js';
 
 const JENIS = [
   ['RUMAH_TANGGA', 'Rumah tangga'],
@@ -10,10 +12,16 @@ const JENIS = [
   ['PEMASUKAN', 'Pemasukan']
 ];
 
+const KUNCI_MODE = 'mode_tambah';
+
 /** @param {object|null} awal Transaksi yang mau diubah, atau null untuk baru. */
 export function bukaTambah(awal = null) {
   const f = {
     id: awal?.id || null,
+    // Mengubah satu catatan tidak punya mode borongan — sakelarnya hanya
+    // muncul saat mencatat baru.
+    mode: awal ? 'satu' : lokal.ambil(KUNCI_MODE, 'satu'),
+    baris: null,
     jenis: awal?.jenis || 'RUMAH_TANGGA',
     nominal: awal?.nominal || 0,
     item: awal?.item || '',
@@ -23,16 +31,41 @@ export function bukaTambah(awal = null) {
     catatan: awal?.catatan || ''
   };
 
-  const tutup = sheet(awal ? 'Ubah catatan' : 'Catat transaksi', (tutupSheet) => {
+  const tutup = sheet(awal ? 'Ubah catatan' : 'Catat transaksi', (tutupSheet, badan) => {
     const wadah = h('div');
     const gambar = () => {
       kosongkan(wadah);
-      wadah.appendChild(isiForm(f, gambar, tutupSheet));
+      if (!awal) wadah.appendChild(sakelarMode(f, gambar));
+      wadah.appendChild(f.mode === 'banyak'
+        ? formBanyak(f, gambar, tutupSheet)
+        : isiForm(f, gambar, tutupSheet));
+      // Aksen warna di seluruh sheet mengikuti sifat pengeluaran — hanya
+      // masuk akal saat satu sifat berlaku untuk seluruh form (mode satu,
+      // bukan pemasukan). Mode banyak punya sifat per baris.
+      badan.classList.toggle('sheet-wajib', f.mode === 'satu' && f.jenis !== 'PEMASUKAN' && f.sifat === 'WAJIB');
+      badan.classList.toggle('sheet-keinginan', f.mode === 'satu' && f.jenis !== 'PEMASUKAN' && f.sifat === 'KEINGINAN');
     };
     gambar();
     return wadah;
   });
   return tutup;
+}
+
+function sakelarMode(f, gambar) {
+  return h('div.sakelar-mode', { role: 'radiogroup', 'aria-label': 'Jumlah catatan' },
+    [['satu', 'Satu'], ['banyak', 'Banyak']].map(([nilai, label]) =>
+      h('button', {
+        type: 'button', role: 'radio', 'aria-checked': String(f.mode === nilai),
+        kelas: f.mode === nilai ? 'aktif' : '',
+        onclick: () => {
+          if (f.mode === nilai) return;
+          f.mode = nilai;
+          lokal.simpan(KUNCI_MODE, nilai);
+          gambar();
+        }
+      }, label)
+    )
+  );
 }
 
 function isiForm(f, gambar, tutupSheet) {
@@ -116,7 +149,7 @@ function isiForm(f, gambar, tutupSheet) {
     if (!f.kategori) { roti('Pilih dulu kategorinya.', 'salah'); return; }
 
     const t = {
-      id: f.id || `trx-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      id: f.id || idTransaksi(),
       tanggal: f.tanggal,
       bulan: f.tanggal.slice(0, 7),
       jenis: f.jenis,

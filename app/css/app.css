@@ -218,9 +218,25 @@
   border-top: 1px solid var(--garis);
   padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
   animation: naik 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
 }
 @media (min-width: 700px) {
   .sheet { max-width: 480px; border-radius: var(--r-besar); border: 1px solid var(--garis); }
+}
+
+/* Aksen sheet mengikuti sifat pengeluaran yang dipilih — merah untuk wajib,
+   hijau untuk keinginan — supaya kelihatan tanpa harus melirik sakelarnya. */
+.sheet.sheet-wajib {
+  border-top-color: var(--wajib);
+  box-shadow: inset 0 0 0 2px rgba(229,72,77,0.35), inset 0 8px 24px -16px rgba(229,72,77,0.5);
+}
+.sheet.sheet-keinginan {
+  border-top-color: var(--keinginan);
+  box-shadow: inset 0 0 0 2px rgba(22,163,74,0.35), inset 0 8px 24px -16px rgba(22,163,74,0.5);
+}
+@media (min-width: 700px) {
+  .sheet.sheet-wajib { border-color: var(--wajib); }
+  .sheet.sheet-keinginan { border-color: var(--keinginan); }
 }
 .sheet .pegangan {
   width: 38px; height: 4px; border-radius: 999px; background: var(--tinta-samar);
@@ -279,6 +295,87 @@
   box-shadow: 0 5px 14px -5px rgba(22,163,74,0.8);
 }
 .sakelar-sifat button.aktif .titik { opacity: 1; background: #fff; }
+
+/* ------------------------------------------------------ catat banyak baris */
+
+/* Sakelar Satu / Banyak di kepala sheet catat. */
+.sakelar-mode {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px;
+  background: var(--kaca-pekat); border: 1px solid var(--garis-halus);
+  border-radius: 999px; margin-bottom: 14px;
+}
+.sakelar-mode button {
+  padding: 9px 8px; border-radius: 999px; font-size: 13.5px; font-weight: 650;
+  color: var(--tinta-samar); transition: all 0.16s ease;
+}
+.sakelar-mode button.aktif {
+  background: linear-gradient(135deg, var(--tosca-terang), var(--tosca));
+  color: #fff; box-shadow: 0 5px 14px -5px rgba(20,184,196,0.8);
+}
+
+.isian textarea { resize: vertical; flex: 1; min-width: 0; line-height: 1.5; }
+
+/* Satu kartu = satu baris yang siap dikoreksi. Nama dan nominal di atas,
+   kategori dan sifat di bawah — dua baris, karena empat kolom sejajar tidak
+   muat di layar HP tanpa mengecilkan sasaran jempol. */
+.baris-catat {
+  padding: 10px 12px; border-radius: var(--r-kecil);
+  background: var(--kaca-pekat); border: 1px solid var(--garis-halus);
+  border-left: 3px solid transparent;
+}
+.baris-catat.perlu { border-left-color: var(--wajib); background: var(--wajib-lembut); }
+.baris-catat .baris-atas { display: flex; gap: 7px; align-items: center; }
+.baris-catat .baris-bawah {
+  display: flex; gap: 7px; align-items: center; margin-top: 7px; flex-wrap: wrap;
+}
+.baris-catat input, .baris-catat select {
+  padding: 9px 10px; border-radius: var(--r-kecil); font-size: 14px;
+  border: 1px solid var(--garis-halus); background: var(--latar-padat);
+  outline: none; min-width: 0;
+}
+.baris-catat input:focus, .baris-catat select:focus {
+  border-color: var(--tosca); box-shadow: 0 0 0 3px rgba(20,184,196,0.16);
+}
+.baris-catat .baris-atas input:first-child { flex: 1; }
+.baris-catat .baris-atas input.angka { width: 108px; flex: none; text-align: right; font-weight: 650; }
+.baris-catat select { flex: 1 1 130px; min-width: 130px; }
+.baris-catat .buang {
+  width: 30px; height: 30px; flex: none; border-radius: 50%;
+  color: var(--tinta-samar); font-size: 19px; line-height: 1;
+}
+.baris-catat .buang:active { background: var(--wajib-lembut); color: var(--wajib); }
+.baris-catat .perlu-teks { color: var(--wajib); margin-top: 6px; }
+
+/* Sifat versi kecil — hanya teks, tanpa titik, supaya muat berdampingan
+   dengan kategori. Merah/hijau tetap tidak pernah berdiri sendiri. */
+.sifat-mini { display: flex; gap: 3px; padding: 3px; border-radius: 999px;
+  background: var(--latar-padat); border: 1px solid var(--garis-halus); flex: none; }
+.sifat-mini button {
+  padding: 6px 11px; border-radius: 999px; font-size: 12px; font-weight: 650;
+  color: var(--tinta-samar);
+}
+.sifat-mini button[data-nilai="WAJIB"].aktif { background: var(--wajib); color: #fff; }
+.sifat-mini button[data-nilai="KEINGINAN"].aktif { background: var(--keinginan); color: #fff; }
+
+.baris-catat .tanggal-beda {
+  padding: 6px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+  color: var(--tosca); background: var(--kaca); border: 1px dashed var(--garis);
+  flex: none;
+}
+
+/* Kaki lengket. Margin negatifnya menetralkan padding .sheet supaya garis
+   atasnya menempel ke tepi panel, bukan mengambang 16px dari pinggir. */
+.kaki-catat {
+  position: sticky; bottom: calc(-20px - env(safe-area-inset-bottom));
+  margin: 0 -16px calc(-20px - env(safe-area-inset-bottom));
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+  background: var(--latar-padat); border-top: 1px solid var(--garis);
+}
+.kaki-jumlah {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 9px;
+}
+.kaki-jumlah .angka { font-size: 17px; }
 
 /* --------------------------------------------------------------- tombol -- */
 

@@ -1,6 +1,6 @@
 import { h, roti, kosongkan, sheet, ikon, konfirmasi } from '../ui.js';
 import { rp, rpSingkat, namaBulan, tanggalPanjang, hariIni } from '../rupiah.js';
-import { st, statusRutin, taruhTransaksi, buangTransaksi, umumkan, PENANDA_RUTIN } from '../toko.js';
+import { st, statusRutin, taruhTransaksi, buangTransaksi, umumkan, idTransaksi, PENANDA_RUTIN } from '../toko.js';
 import { panggil, kirimTransaksi } from '../api.js';
 
 export function rutin() {
@@ -83,7 +83,7 @@ async function tandai(s, gambar) {
     return;
   }
   const t = {
-    id: `trx-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    id: idTransaksi(),
     tanggal: s.jatuhTempo > hariIni() ? hariIni() : s.jatuhTempo,
     bulan: s.bulan,
     jenis: s.rutin.jenis || 'TETAP',
