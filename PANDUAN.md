@@ -20,6 +20,7 @@ boleh dilewati dulu dan dikerjakan kapan saja nanti — bagian lain tetap jalan.
    | `Ringkasan` | `apps-script/Ringkasan.gs` |
    | `Rutin`     | `apps-script/Rutin.gs` |
    | `Migrasi`   | `apps-script/Migrasi.gs` |
+   | `Sinkron`   | `apps-script/Sinkron.gs` |
    | `Pengingat` | `apps-script/Pengingat.gs` |
 
 3. Simpan (Ctrl/Cmd + S).
@@ -103,6 +104,42 @@ boleh dilewati dulu dan dikerjakan kapan saja nanti — bagian lain tetap jalan.
 > dan 9 (Rp600.000 + Rp200.000) dan semua baris di bawahnya mewarisi kekurangan
 > itu. Tab `Saving` yang baru menghitung ulang seluruh mutasi, sehingga saldonya
 > **Rp14.127.046**, bukan Rp13.327.046 seperti yang tertulis di tab lama.
+
+---
+
+## 2b. Kalau admin masih mengisi `Monthly 26` (2 menit)
+
+Langkah 2 memindahkan data lama **sekali**. Kalau kenyataannya tab lama masih
+dipakai setiap hari — admin belum pindah ke aplikasi, dan memang tidak harus —
+bagian ini yang menjaga keduanya tetap sama.
+
+1. Jalankan **`periksaSinkron`**. Tidak mengubah apa pun; ia menulis rencananya
+   ke tab baru **`Sinkron Cek`**, satu baris per perubahan yang akan terjadi.
+2. Baca tabelnya. Kolom "aksi" hanya berisi lima kemungkinan:
+
+   | aksi | artinya |
+   |---|---|
+   | `tambah` | baris baru dari tab lama yang belum ada di aplikasi |
+   | `nominal berubah` | angkanya dibetulkan admin; yang lain tidak disentuh |
+   | `tidak ada lagi di sheet lama` | barisnya hilang dari tab lama. **Tidak dihapus** — hanya diberi catatan, Anda yang memutuskan |
+   | `periksa sendiri` | dugaan yang tidak cukup kuat untuk dikerjakan mesin. Biasanya admin mengubah tulisan nama barangnya, atau belanja yang sama tercatat dua kali (sekali lewat aplikasi, sekali di tab lama) |
+   | `tambah saving` | mutasi baru di `SAVING 2026` |
+
+3. Kalau sudah cocok, jalankan **`jalankanSinkron`**. Aman diulang berapa kali
+   pun: baris yang sudah pernah ditarik dikenali dari isinya sendiri, jadi tidak
+   pernah tergandakan.
+4. Jalankan **`pasangPemicuSinkron`** sekali. Setelah itu sinkronnya jalan
+   sendiri tiap jam 5 pagi, dan hasil tiap kali jalan tercatat di tab
+   `Sinkron Log`.
+
+Setelah Sheet dibuka ulang, ada menu **KKG** di sebelah menu Bantuan berisi dua
+langkah yang sama — supaya bisa dijalankan tanpa membuka editor Apps Script.
+Dari HP, tombolnya ada di **Pengaturan → Data dari sheet lama**.
+
+> **Yang tidak akan pernah dilakukan sinkron:** menimpa apa yang sudah Anda
+> betulkan. Kategori, sifat WAJIB/KEINGINAN, dan tanggal yang Anda perbaiki
+> lewat aplikasi tetap seperti itu walaupun tebakan mesinnya sekarang berbeda.
+> Transaksi yang Anda catat sendiri lewat aplikasi juga tidak pernah disentuh.
 
 ---
 
@@ -208,6 +245,8 @@ tidak bisa dilakukan Apps Script.
 | Perubahan kode `.gs` tidak terasa | Belum Deploy ulang sebagai **New version** |
 | Menekan Run tapi yang jalan fungsi lain | Pemilih fungsi di toolbar kadang cuma berubah tulisannya tanpa benar-benar ganti pilihan. Cara paling aman: klik dulu berkas yang memuat fungsinya di panel Files, lalu **cek riwayat di menu Executions** (ikon jam di kiri) untuk memastikan nama fungsi yang benar-benar dijalankan — jangan cuma percaya tulisan "Execution completed" |
 | Angka aplikasi beda dengan Sheet | Jalankan `segarkanRingkasan` di Apps Script |
+| Catatan admin di `Monthly 26` tidak muncul di aplikasi | Sinkronnya belum jalan. Tekan **Pengaturan → Tarik data dari sheet lama** di HP, atau jalankan `jalankanSinkron`. Kalau ini sering terjadi, `pasangPemicuSinkron` belum pernah dijalankan |
+| Ada transaksi kembar | Kemungkinan besar satu belanja dicatat dua kali: sekali lewat aplikasi, sekali di `Monthly 26`. Tab `Sinkron Cek` sudah menandainya dengan aksi `periksa sendiri` |
 | Notifikasi tidak datang di iPhone | Aplikasi belum ditambahkan ke Layar Utama, atau izin belum diberikan |
 | Catatan tertahan "tertunda" | Sedang tanpa sinyal. Akan terkirim sendiri; bisa dipaksa lewat Pengaturan → Kirim catatan tertunda |
 

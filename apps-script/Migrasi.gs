@@ -11,6 +11,11 @@
  *
  * Semua baris hasil ditandai kolom `sumber` = 'migrasi', jadi input manual
  * Ryan lewat aplikasi tidak akan pernah ikut terhapus.
+ *
+ * Berkas ini untuk pemindahan sekali jalan. Untuk data yang MASIH terus
+ * ditambah admin di `Monthly 26`, pakai Sinkron.gs — ia memakai pembacaan yang
+ * sama persis, tapi hanya menambahkan yang benar-benar baru dan tidak pernah
+ * menimpa baris yang sudah dirapikan lewat aplikasi.
  */
 
 var TAB_LAMA = ['Monthly 25', 'Monthly 26'];
@@ -126,6 +131,38 @@ function bentukKelompok_(sh, jenis, kolomMulai, kolomBatas, lastRow) {
 }
 
 function pad2_(n) { return n < 10 ? '0' + n : String(n); }
+
+// --------------------------------------------------------------- penanda --
+
+/**
+ * Id sebuah baris sumber, dihitung dari isinya sendiri — bukan dari nomor urut
+ * bacanya. Ini yang membuat Sinkron.gs bisa dijalankan berulang kali: baris
+ * yang sama di `Monthly 26` selalu menghasilkan id yang sama, jadi sinkron
+ * berikutnya mengenalinya sebagai baris lama dan tidak menambah kembaran.
+ *
+ * Sengaja memakai nama item yang masih mentah (belum dibersihkan dari
+ * tanggalnya), karena itulah yang benar-benar tertulis di Sheet lama. Kalau
+ * yang dipakai versi bersihnya, dua baris "Sarapan 12/06" dan "Sarapan 13/06"
+ * bernominal sama akan bertabrakan.
+ */
+function idMigrasi_(bulan, jenis, itemMentah, nominal, kembar) {
+  var tanda = String(itemMentah).trim() + '|' + Math.round(angka_(nominal));
+  kembar[tanda] = (kembar[tanda] || 0) + 1;
+  return 'mig-' + bulan + '-' + String(jenis).substring(0, 3) + '-' +
+         sidik_(tanda + '|' + kembar[tanda]);
+}
+
+/** Delapan huruf heksadesimal pertama dari MD5. Cukup untuk membedakan baris. */
+function sidik_(teks) {
+  var bita = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.MD5, String(teks), Utilities.Charset.UTF_8);
+  var hasil = '';
+  for (var i = 0; i < 4; i++) {
+    var v = (bita[i] + 256) % 256;
+    hasil += (v < 16 ? '0' : '') + v.toString(16);
+  }
+  return hasil;
+}
 
 // ------------------------------------------------------- tebakan & aturan --
 
@@ -264,6 +301,10 @@ function bacaSemuaTabLama_() {
         pemasukan: 0, tetap: 0, rumah_tangga: 0, jumlah: 0,
         dilewati: [], cicilan: [], tanpaTanggal: 0
       };
+      // Berapa kali isi baris yang persis sama sudah muncul di bulan ini.
+      // Dipakai idMigrasi_ supaya dua "Bensin 100.000" di bulan yang sama
+      // tetap punya id sendiri-sendiri.
+      var kembar = {};
 
       blok.kelompok.forEach(function (kel) {
         var lewatCicilan = false;
@@ -313,7 +354,7 @@ function bacaSemuaTabLama_() {
           if (!kategoriSel) catatan.push('kategori tebakan');
 
           transaksi.push({
-            id: 'mig-' + blok.bulan + '-' + kel.jenis.substring(0, 3) + '-' + (transaksi.length + 1),
+            id: idMigrasi_(blok.bulan, kel.jenis, itemMentah, n, kembar),
             tanggal: tgl.tanggal,
             jenis: kel.jenis,
             kategori: kategori,
@@ -463,22 +504,31 @@ function batalkanMigrasi_(diam) {
   return n;
 }
 
-/** `SAVING 2026` -> tab `Saving`. Tanggal serial spreadsheet dikonversi. */
-function migrasiSaving_() {
+/** Sama alasannya dengan idMigrasi_, untuk baris mutasi `SAVING 2026`. */
+function idSaving_(tanggal, debet, kredit, keterangan, kembar) {
+  var tanda = tanggal + '|' + Math.round(angka_(debet)) + '|' +
+              Math.round(angka_(kredit)) + '|' + String(keterangan || '').trim();
+  kembar[tanda] = (kembar[tanda] || 0) + 1;
+  return 'migsvg-' + sidik_(tanda + '|' + kembar[tanda]);
+}
+
+/** Baris `SAVING 2026` sebagai calon baris tab `Saving`. Hanya membaca. */
+function bacaSavingLama_() {
   var sh = ss_().getSheetByName(TAB_SAVING_LAMA);
-  if (!sh) return 0;
+  if (!sh) return [];
   var akhir = sh.getLastRow();
-  if (akhir < 3) return 0;
+  if (akhir < 3) return [];
   var nilai = sh.getRange(3, 1, akhir - 2, 5).getValues();
   var baru = [];
-  nilai.forEach(function (b, i) {
+  var kembar = {};
+  nilai.forEach(function (b) {
     var tanggal = keTanggal_(b[0]);
     var debet = angka_(b[1]);
     var kredit = angka_(b[2]);
     if (!tanggal) return;
     if (!debet && !kredit) return;   // baris ekor yang cuma mengulang saldo
     baru.push({
-      id: 'migsvg-' + (i + 1),
+      id: idSaving_(tanggal, debet, kredit, b[4], kembar),
       tanggal: tanggal,
       debet: debet,
       kredit: kredit,
@@ -487,6 +537,13 @@ function migrasiSaving_() {
       status: 'aktif'
     });
   });
+  return baru;
+}
+
+/** `SAVING 2026` -> tab `Saving`. Tanggal serial spreadsheet dikonversi. */
+function migrasiSaving_() {
+  var baru = bacaSavingLama_();
+  if (!baru.length) return 0;
   tulisBanyak_(TAB.SAVING, baru);
   hitungUlangSaldoSaving_();
   return baru.length;

@@ -333,7 +333,13 @@ def kategori_lain(jenis, item):
 
 
 def ekspor_json(path_xlsx, keluar):
-    """Tulis data contoh berformat sama dengan jawaban 'awal' dari Apps Script."""
+    """Tulis data contoh berformat sama dengan jawaban 'awal' dari Apps Script.
+
+    Id di sini cuma nomor urut, bukan cerminan idMigrasi_ di Migrasi.gs. Yang
+    dicerminkan berkas ini adalah pemindaian layout Sheet lama; aturan id dan
+    pencocokan sinkron diuji terpisah oleh tools/uji_sinkron.js, yang memang
+    menjalankan kode .gs-nya sendiri.
+    """
     import json
     buku = muat(path_xlsx)
     transaksi, _ = baca_semua(buku)

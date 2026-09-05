@@ -391,6 +391,8 @@ function doPost(e) {
       case 'perangkat.daftar':  return jawab_({ ok: true, data: daftarkanPerangkat_(data) });
       case 'perangkat.hapus':   return jawab_({ ok: true, data: hapusPerangkat_(data) });
       case 'pengaturan.simpan': return jawab_({ ok: true, data: simpanPengaturan_(data) });
+      // Tarik isi terbaru `Monthly 26` yang masih diisi admin. Lihat Sinkron.gs.
+      case 'sinkron.jalankan':  return jawab_({ ok: true, data: sinkronDariAplikasi_() });
       default:
         return jawab_({ ok: false, pesan: 'Aksi tidak dikenal: ' + aksi });
     }
@@ -1071,6 +1073,20 @@ function siapkanSheet() {
   formatTabTransaksi_();
   bangunRingkasan_();
   return 'Tab siap. Berikutnya jalankan setPin("123456") dengan PIN pilihan Anda.';
+}
+
+/**
+ * Menu "KKG" di Spreadsheet. Ada supaya sinkron dari `Monthly 26` bisa
+ * dijalankan tanpa membuka editor Apps Script — termasuk oleh admin yang
+ * mengisi tab lamanya.
+ */
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('KKG')
+    .addItem('Tarik data dari sheet lama', 'jalankanSinkron')
+    .addItem('Lihat dulu apa yang akan berubah', 'periksaSinkron')
+    .addSeparator()
+    .addItem('Segarkan Ringkasan', 'segarkanRingkasan')
+    .addToUi();
 }
 
 function formatTabTransaksi_() {

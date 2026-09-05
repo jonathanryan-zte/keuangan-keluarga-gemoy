@@ -10,7 +10,7 @@ saat tidak ada sinyal.
 
 ```
 app/            Aplikasi (PWA). Modul ES biasa — tanpa npm, tanpa build.
-apps-script/    Kode Google Apps Script yang ditempel ke Sheet.
+apps-script/    Kode Google Apps Script yang menempel di Sheet.
 worker/         Cloudflare Worker pengirim notifikasi push.
 tools/          Alat bantu sekali pakai (uji migrasi, uji push, pembuat logo & kunci).
 ```
@@ -47,6 +47,7 @@ seperti di HP.
 | Perintah / berkas | Gunanya |
 |---|---|
 | `python3 tools/cek_migrasi.py <berkas.xlsx>` | Menguji algoritma migrasi terhadap salinan Sheet (.xlsx) tanpa menyentuh data asli. Cerminan Python dari `apps-script/Migrasi.gs` — kalau salah satunya diubah, ubah keduanya. |
+| `node tools/uji_sinkron.js` | Menjalankan otak pencocokan `apps-script/Sinkron.gs` di Node dengan Apps Script yang dipalsukan. Jalankan setiap kali aturan pencocokannya disentuh. |
 | `tools/uji_push.html` | Uji bolak-balik enkripsi Web Push (RFC 8291) dan tanda tangan VAPID. Butuh server lokal karena memakai modul ES. |
 | `tools/buat_kunci_vapid.html` | Membuat pasangan kunci VAPID untuk notifikasi. Bisa dibuka langsung tanpa server. |
 | `python3 tools/buat_logo.py` | Menggambar ulang logo KKG dari koordinat terhitung. |
@@ -78,6 +79,14 @@ seperti di HP.
 - **Daftar kategori punya satu sumber**, yaitu tab `Kategori` di Sheet. Layar
   Anggaran yang mengubahnya, dan perubahan itu langsung terasa di form catat,
   saringan Riwayat, tagihan rutin, dan pengingat pagi.
+- **Sheet lama boleh terus dipakai.** Admin masih mengisi tab `Monthly 26`
+  seperti biasa, dan `Sinkron.gs` menariknya tiap subuh. Yang membuatnya aman
+  diulang: setiap baris sumber punya id yang dihitung dari isinya sendiri, jadi
+  baris yang sama selalu dikenali sebagai baris yang sama. Yang sudah
+  dibetulkan lewat aplikasi tidak pernah tertimpa, dan baris yang hilang dari
+  tab lama cuma diberi catatan — tidak dihapus. Tebakan yang tidak cukup yakin
+  tidak dikerjakan diam-diam, tapi dituliskan ke tab `Sinkron Cek` supaya
+  diputuskan manusia.
 - **Tema mengikuti HP**, tanpa tombol ganti tema.
 - **Efek kaca dimatikan otomatis** kalau pengguna menyalakan pengurangan
   transparansi di pengaturan aksesibilitas.

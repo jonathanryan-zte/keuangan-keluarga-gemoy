@@ -1,8 +1,15 @@
 import { h, roti, kosongkan, konfirmasi } from '../ui.js';
-import { rp, namaBulan } from '../rupiah.js';
-import { st, umumkan, saldoSaving } from '../toko.js';
-import { panggil, urlApi, setUrlApi, keluar, kirimAntrian } from '../api.js';
+import { rp, namaBulan, bulanIni, geserBulan } from '../rupiah.js';
+import { st, umumkan, saldoSaving, terapkanMuatan } from '../toko.js';
+import { panggil, muatAwal, urlApi, setUrlApi, keluar, kirimAntrian } from '../api.js';
 import { antrian, lokal } from '../simpanan.js';
+
+/**
+ * Hasil sinkron terakhir. Disimpan di luar fungsi layar supaya tidak ikut
+ * hilang saat layarnya digambar ulang — dan sinkron memang selalu diakhiri
+ * gambar ulang, karena angkanya berubah.
+ */
+let kabarSinkron = null;
 
 export function pengaturan() {
   const wadah = h('div.papan.dua');
@@ -106,8 +113,68 @@ function isi(wadah, gambar) {
           location.reload();
         }
       }, 'Muat ulang dari Sheet')
-    )
+    ),
+    kartuSinkron()
   ));
+}
+
+/**
+ * Tarik isi tab lama (`Monthly 26`) yang masih diisi admin.
+ *
+ * Tombolnya ada di sini, bukan berjalan sendiri tiap kali aplikasi dibuka,
+ * karena membaca seluruh tab lama butuh beberapa detik — terlalu lama untuk
+ * ditunggu di layar pembuka. Yang otomatis adalah pemicu harian di Apps
+ * Script; tombol ini untuk saat Ryan ingin melihatnya sekarang juga.
+ */
+function kartuSinkron() {
+  const tombol = h('button.tombol.tosca.lebar', {
+    onclick: async () => {
+      tombol.disabled = true;
+      const semula = tombol.textContent;
+      tombol.textContent = 'Membaca sheet lama…';
+      try {
+        const hasil = await panggil('sinkron.jalankan');
+        kabarSinkron = hasil;
+        // Angka di seluruh aplikasi ikut berubah, jadi datanya diambil ulang.
+        terapkanMuatan(await muatAwal(geserBulan(bulanIni(), -13)));
+        roti(hasil.ditambah ? `${hasil.ditambah} catatan baru masuk` : 'Sudah paling baru');
+        umumkan();
+      } catch (e) {
+        tombol.disabled = false;
+        tombol.textContent = semula;
+        roti(e.message, 'salah');
+      }
+    }
+  }, 'Tarik data dari sheet lama');
+
+  return h('div.kaca.kartu',
+    h('div.kepala-kartu', h('h2', 'Data dari sheet lama')),
+    h('p.kecil.lembut', { gaya: { marginBottom: '12px' } },
+      'Selama admin masih mengisi tab Monthly 26 di Google Sheet, isinya ditarik ke sini. ' +
+      'Berjalan sendiri tiap subuh; tombol ini untuk menariknya sekarang juga.'),
+    tombol,
+    kabarSinkron ? ringkasSinkron(kabarSinkron) : null,
+    h('p.mini.samar', { gaya: { marginTop: '10px' } },
+      'Yang sudah Anda betulkan di sini tidak akan tertimpa, dan tidak ada baris yang dihapus. ' +
+      'Rinciannya ada di tab "Sinkron Cek" di Google Sheet.')
+  );
+}
+
+function ringkasSinkron(kabar) {
+  const baris = [
+    ['Catatan baru masuk', kabar.ditambah],
+    ['Nominal diperbarui', kabar.nominalDiperbarui],
+    ['Mutasi saving baru', kabar.savingDitambah],
+    ['Tidak ada lagi di sheet lama', kabar.hilang],
+    ['Perlu Anda periksa sendiri', kabar.curiga]
+  ].filter(([, n]) => n > 0);
+
+  if (!baris.length) {
+    return h('p.kecil.lembut', { gaya: { marginTop: '12px' } },
+      'Tidak ada yang baru — semua isi sheet lama sudah ada di sini.');
+  }
+  return h('div.petak', { gaya: { marginTop: '12px' } },
+    ...baris.map(([k, n]) => h('div.sel', h('div.k', k), h('div.v.angka', String(n)))));
 }
 
 /**
