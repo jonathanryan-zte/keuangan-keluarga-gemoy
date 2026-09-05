@@ -4,6 +4,10 @@
 // Alurnya dua tahap dalam satu tampilan: tempel/ketik daftarnya, lalu perbaiki
 // yang salah tebak langsung di kartunya. Tidak ada sheet di atas sheet —
 // membuka dan menutup delapan kali persis yang mau dihindari di sini.
+//
+// Ada dua jalan masuk, dan keduanya setara. Kotak tempel di atas untuk yang
+// sudah punya daftar; satu baris kosong yang selalu tersedia di bawah untuk
+// yang mau langsung mengetik per kolom tanpa lewat kotak itu dulu.
 
 import { h, roti, ikon, kosongkan } from '../ui.js';
 import { rp, bacaNominal, hariIni, tanggalPanjang } from '../rupiah.js';
@@ -13,12 +17,26 @@ import { kirimTransaksi } from '../api.js';
 
 const CONTOH = 'galon 56500\ntelur 2 rak 78rb\nbakso chukul 59rb kemarin';
 
+/** Baris yang belum disentuh sama sekali. Bukan baris yang salah — cuma belum
+ *  diisi — jadi ia tidak ikut dihitung, tidak ditandai merah, dan tidak ikut
+ *  tersimpan. */
+const barisKosong = (b) => !b.item.trim() && !b.nominal && !b.kategori;
+const barisTerisi = (f) => f.baris.filter((b) => !barisKosong(b));
+
+function baruKosong() {
+  return {
+    kunci: idTransaksi(), mentah: '', item: '', nominal: 0,
+    kategori: '', sifat: 'KEINGINAN', tanggal: null
+  };
+}
+
 /**
  * @param {object} f Keadaan form yang dibagi dengan mode satuan (jenis, tanggal).
  * @param {Function} gambar Menggambar ulang seluruh isi sheet.
  * @param {Function} tutupSheet
+ * @param {HTMLElement} slotKaki Slot kaki milik sheet, di luar wadah gulir.
  */
-export function formBanyak(f, gambar, tutupSheet) {
+export function formBanyak(f, gambar, tutupSheet, slotKaki) {
   // Daftar baris hidup di `f` supaya tidak hilang saat sheet digambar ulang —
   // mengganti tanggal atau jenis tidak boleh menghapus koreksi yang sudah
   // dikerjakan.
@@ -28,7 +46,7 @@ export function formBanyak(f, gambar, tutupSheet) {
 
   // --- kotak tempel --------------------------------------------------------
   const kotak = h('textarea', {
-    rows: f.baris.length ? 3 : 6,
+    rows: barisTerisi(f).length ? 3 : 6,   // mengecil setelah ada isinya
     placeholder: CONTOH,
     'aria-label': 'Daftar transaksi, satu per baris'
   });
@@ -40,7 +58,9 @@ export function formBanyak(f, gambar, tutupSheet) {
       return;
     }
     // Ditambahkan, bukan ditimpa: "Tambah baris lagi" tidak boleh membuang
-    // baris yang sudah dirapikan.
+    // baris yang sudah dirapikan. Yang dibuang cuma baris kosong, supaya hasil
+    // tempelan tidak menyelip di atasnya.
+    f.baris = f.baris.filter((b) => !barisKosong(b));
     for (const p of hasil) {
       f.baris.push({
         kunci: idTransaksi(),
@@ -64,14 +84,15 @@ export function formBanyak(f, gambar, tutupSheet) {
   // --- hitungan ------------------------------------------------------------
   // Dihitung saat dipakai, bukan sekali di awal: sejak koreksi baris tidak lagi
   // menggambar ulang seluruh form, angka yang dibekukan di sini akan basi.
-  const kurang = () => f.baris.filter((b) => !b.nominal || !b.kategori).length;
+  const kurang = () => barisTerisi(f).filter((b) => !b.nominal || !b.kategori).length;
   const jumlah = () => f.baris.reduce((a, b) => a + (b.nominal || 0), 0);
 
   const simpan = async () => {
-    if (!f.baris.length) { roti('Belum ada yang mau dicatat.', 'salah'); return; }
+    const terisi = barisTerisi(f);
+    if (!terisi.length) { roti('Belum ada yang mau dicatat.', 'salah'); return; }
     if (kurang()) { roti(`${kurang()} baris belum lengkap.`, 'salah'); return; }
 
-    const daftar = f.baris.map((b) => ({
+    const daftar = terisi.map((b) => ({
       id: idTransaksi(),
       tanggal: b.tanggal || f.tanggal,
       bulan: (b.tanggal || f.tanggal).slice(0, 7),
@@ -104,13 +125,45 @@ export function formBanyak(f, gambar, tutupSheet) {
   // yang menutup sendiri dan ketukan berikutnya yang tidak kena apa-apa,
   // karena elemen sasarannya sudah diganti sebelum jari sempat mendarat.
   const kaki = h('div.kaki-catat');
-  const segarkan = () => {
-    daftarKartu.forEach((k) => k.perbarui());
-    isiKaki(kaki, f, kurang(), jumlah(), simpan);
+  const wadahBaris = h('div', { gaya: { display: 'grid', gap: '8px', marginBottom: '14px' } });
+  const daftarKartu = [];
+
+  const pasangKartu = (b) => {
+    const k = kartuBaris(b, f, daftarKategori, pemasukan, buangBaris, segarkan);
+    daftarKartu.push(k);
+    wadahBaris.appendChild(k.el);
   };
-  const daftarKartu = f.baris.map((b) =>
-    kartuBaris(b, f, daftarKategori, pemasukan, gambar, segarkan));
-  isiKaki(kaki, f, kurang(), jumlah(), simpan);
+
+  // Selalu sisakan satu baris kosong paling bawah. Itu yang membuat form ini
+  // bisa dimulai langsung dari kolom, tanpa harus lewat kotak tempel dulu:
+  // begitu baris terbawah mulai diisi, satu baris kosong baru menyusul di
+  // bawahnya. Kartunya ditambahkan, bukan digambar ulang, supaya kolom yang
+  // sedang diketik tidak ikut terbuang.
+  const jagaBarisKosong = () => {
+    const terakhir = f.baris[f.baris.length - 1];
+    if (terakhir && barisKosong(terakhir)) return;
+    const b = baruKosong();
+    f.baris.push(b);
+    pasangKartu(b);
+  };
+
+  const segarkan = () => {
+    jagaBarisKosong();
+    daftarKartu.forEach((k) => k.perbarui());
+    isiKaki(kaki, barisTerisi(f).length, kurang(), jumlah(), simpan);
+  };
+
+  const buangBaris = (b) => {
+    const i = f.baris.indexOf(b);
+    if (i < 0) return;
+    f.baris.splice(i, 1);
+    daftarKartu.splice(i, 1)[0].el.remove();
+    segarkan();
+  };
+
+  f.baris.forEach(pasangKartu);
+  segarkan();
+  slotKaki.appendChild(kaki);
 
   return h('div',
     h('div.isian',
@@ -160,28 +213,24 @@ export function formBanyak(f, gambar, tutupSheet) {
       h('span.bantuan', tanggalPanjang(f.tanggal))
     ),
 
-    daftarKartu.length
-      ? h('div', { gaya: { display: 'grid', gap: '8px', marginBottom: '14px' } },
-          daftarKartu.map((k) => k.el))
-      : h('p.kosong', { gaya: { marginBottom: '14px' } },
-          'Belum ada baris. Tulis daftarnya di atas, lalu tekan tombol kilat.'),
-
-    kaki
+    wadahBaris
   );
 }
 
-/** Ringkasan + tombol simpan. Isinya diganti di tempat tiap ada koreksi. */
-function isiKaki(kaki, f, kurang, jumlah, simpan) {
+/** Ringkasan + tombol simpan. Isinya diganti di tempat tiap ada koreksi.
+ *  `n` adalah jumlah baris yang sudah terisi — baris kosong paling bawah tidak
+ *  ikut, jadi form yang baru dibuka berbunyi "0 catatan", bukan "1". */
+function isiKaki(kaki, n, kurang, jumlah, simpan) {
   kosongkan(kaki);
   kaki.append(
     h('div.kaki-jumlah',
-      h('span.mini.samar', `${f.baris.length} catatan`),
+      h('span.mini.samar', `${n} catatan`),
       h('span.angka.tebal', rp(jumlah))
     ),
     h('button.tombol.utama.lebar', {
       type: 'button', onclick: simpan,
-      disabled: !f.baris.length || kurang > 0
-    }, f.baris.length ? `Catat ${f.baris.length} transaksi` : 'Catat')
+      disabled: !n || kurang > 0
+    }, n ? `Catat ${n} transaksi` : 'Catat')
   );
   if (kurang) {
     kaki.appendChild(h('p.mini.perlu-teks',
@@ -191,7 +240,7 @@ function isiKaki(kaki, f, kurang, jumlah, simpan) {
 }
 
 /** @returns {{el: HTMLElement, perbarui: Function}} */
-function kartuBaris(b, f, daftarKategori, pemasukan, gambar, segarkan) {
+function kartuBaris(b, f, daftarKategori, pemasukan, buangBaris, segarkan) {
   const kotakNominal = h('input.angka', {
     type: 'text', inputmode: 'decimal',
     value: b.nominal ? rp(b.nominal) : '',
@@ -231,8 +280,7 @@ function kartuBaris(b, f, daftarKategori, pemasukan, gambar, segarkan) {
 
   const pilihan = pilihKategori(b, daftarKategori, segarkan);
   const tombolBuang = h('button.buang', {
-    type: 'button',
-    onclick: () => { f.baris = f.baris.filter((x) => x !== b); gambar(); }
+    type: 'button', onclick: () => buangBaris(b)
   }, '×');
 
   const pesanKurang = h('p.mini.perlu-teks');
@@ -241,9 +289,11 @@ function kartuBaris(b, f, daftarKategori, pemasukan, gambar, segarkan) {
       h('input', {
         type: 'text', value: b.item, autocapitalize: 'words',
         placeholder: 'Untuk apa', 'aria-label': 'Nama transaksi',
-        // perbarui() hanya menyentuh atribut dan kelas, tidak ada elemen yang
-        // diganti — aman dipanggil tiap ketukan, papan ketik tetap terbuka.
-        oninput: (e) => { b.item = e.target.value; perbarui(); }
+        // segarkan() aman dipanggil tiap ketukan: ia cuma menyentuh atribut dan
+        // kelas, dan paling banter menambahkan satu kartu kosong di bawah —
+        // tidak ada elemen yang diganti, jadi papan ketik tetap terbuka.
+        oninput: (e) => { b.item = e.target.value; segarkan(); },
+        onblur: () => segarkan()
       }),
       kotakNominal,
       tombolBuang
@@ -256,7 +306,7 @@ function kartuBaris(b, f, daftarKategori, pemasukan, gambar, segarkan) {
       b.tanggal && b.tanggal !== f.tanggal
         ? h('button.tanggal-beda', {
             type: 'button', 'aria-label': `Samakan tanggal ${b.item} dengan yang lain`,
-            onclick: () => { b.tanggal = null; gambar(); }
+            onclick: (e) => { b.tanggal = null; e.target.remove(); segarkan(); }
           }, tanggalPanjang(b.tanggal).replace(/^\w+, /, ''))
         : null
     ),
@@ -275,8 +325,17 @@ function kartuBaris(b, f, daftarKategori, pemasukan, gambar, segarkan) {
     pilihan.setAttribute('aria-label', `Kategori ${nama}`);
     sifatMini?.setAttribute('aria-label', `Sifat ${nama}`);
 
-    const kurangNominal = !b.nominal;
-    const kurangKategori = !b.kategori;
+    // Baris yang belum disentuh bukan baris yang salah — ia ajakan mengisi,
+    // jadi tidak ditandai merah dan tombol hapusnya disembunyikan.
+    const kosong = barisKosong(b);
+    tombolBuang.hidden = kosong;
+    // Baris yang sedang diisi juga belum pantas dicap merah: mengetik satu
+    // huruf nama seharusnya tidak langsung dibalas "Nominal belum diisi".
+    // Tandanya menyusul begitu jari pindah dari baris ini. Hitungan di kaki
+    // tetap jalan dari data, jadi tombol Catat tetap terkunci sampai lengkap.
+    const tandai = !kosong && !el.contains(document.activeElement);
+    const kurangNominal = tandai && !b.nominal;
+    const kurangKategori = tandai && !b.kategori;
     el.classList.toggle('perlu', kurangNominal || kurangKategori);
     pesanKurang.textContent = kurangNominal && kurangKategori
       ? 'Nominal dan kategori belum diisi'

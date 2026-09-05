@@ -33,11 +33,15 @@ export function bukaTambah(awal = null) {
 
   const tutup = sheet(awal ? 'Ubah catatan' : 'Catat transaksi', (tutupSheet, badan) => {
     const wadah = h('div');
+    // Slot kaki milik sheet, di luar wadah gulir — mode banyak menaruh tombol
+    // "Catat N transaksi" di sana supaya selalu terlihat dan tetap selebar panel.
+    const slotKaki = badan.querySelector('.kaki-sheet');
     const gambar = () => {
       kosongkan(wadah);
+      kosongkan(slotKaki);
       if (!awal) wadah.appendChild(sakelarMode(f, gambar));
       wadah.appendChild(f.mode === 'banyak'
-        ? formBanyak(f, gambar, tutupSheet)
+        ? formBanyak(f, gambar, tutupSheet, slotKaki)
         : isiForm(f, gambar, tutupSheet));
       // Aksen warna di seluruh sheet: kuning untuk mode banyak (sifatnya
       // beda-beda per baris, jadi tak ada satu warna sifat yang mewakili),

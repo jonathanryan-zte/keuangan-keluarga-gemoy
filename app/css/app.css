@@ -236,17 +236,30 @@ body.kunci-gulir { position: fixed; left: 0; right: 0; overflow: hidden; }
   /* dvh, bukan vh: di HP vh dihitung dari layar penuh termasuk bagian yang
      tertutup bilah alamat, jadi kaki sheet-nya kepotong. */
   width: 100%; max-height: 92vh; max-height: 92dvh;
-  /* Sheet hanya boleh bergerak naik-turun. clip, bukan hidden, supaya tidak
-     ikut jadi wadah gulir mendatar kalau suatu saat ada isi yang kelewat
-     lebar — yang mau digulir mendatar mengurus overflow-nya sendiri
-     (lihat .gulir-x). */
-  overflow-y: auto; overflow-x: clip;
+  /* Panel sendiri tidak menggulir. Ia kolom flex: pegangan dan judul di atas,
+     .gulir-sheet menyusut mengisi sisa ruang, .kaki-sheet menempel di bawah. */
+  display: flex; flex-direction: column; overflow: hidden;
   background: var(--latar-padat); background-image: var(--latar);
   border-radius: var(--r-besar) var(--r-besar) 0 0;
-  padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
+  /* Padding sisi tinggal 6px: sisanya pindah ke .gulir-sheet, supaya bilah
+     gulirnya berdiri 6px di dalam panel, bukan di batasnya. */
+  padding: 8px 6px 0;
   animation: naik 0.22s cubic-bezier(0.32, 0.72, 0, 1);
   transition: box-shadow 0.18s ease;
 }
+.sheet .judul-sheet { padding: 0 10px; }
+
+.gulir-sheet {
+  /* min-height:0 wajib — tanpa itu anak flex menolak menyusut di bawah tinggi
+     isinya, dan yang menggulir jadi panelnya lagi. */
+  min-height: 0; overflow-y: auto; overflow-x: clip;
+  padding: 0 10px calc(20px + env(safe-area-inset-bottom));
+}
+/* Kalau ada kaki, jarak bawah dan safe-area jadi urusan kaki itu. */
+.sheet:has(.kaki-sheet > *) .gulir-sheet { padding-bottom: 14px; }
+
+.kaki-sheet { flex: none; margin: 0 -6px; }
+.kaki-sheet:empty { display: none; }
 
 /* Bilah gulir ditarik masuk ke dalam panel. Sebelumnya ia digambar tepat di
    batas sheet dan menyilang lengkung sudutnya, jadi kelihatan berdiri sendiri
@@ -257,9 +270,9 @@ body.kunci-gulir { position: fixed; left: 0; right: 0; overflow: hidden; }
    jarinya tidak pernah sampai ke daerah sudut membulat.
    Catatan: scrollbar-width/-color sengaja tidak dipakai — begitu keduanya ada,
    Chrome mengabaikan seluruh aturan ::-webkit-scrollbar di bawah ini. */
-.sheet::-webkit-scrollbar { width: 14px; }
-.sheet::-webkit-scrollbar-track { background: transparent; margin: 18px 0; }
-.sheet::-webkit-scrollbar-thumb {
+.gulir-sheet::-webkit-scrollbar { width: 14px; }
+.gulir-sheet::-webkit-scrollbar-track { background: transparent; margin: 6px 0; }
+.gulir-sheet::-webkit-scrollbar-thumb {
   background: var(--tinta-samar);
   border: 4px solid transparent; background-clip: padding-box;
   border-radius: 999px;
@@ -417,13 +430,13 @@ body.kunci-gulir { position: fixed; left: 0; right: 0; overflow: hidden; }
   flex: none;
 }
 
-/* Kaki lengket. Margin negatifnya menetralkan padding .sheet supaya garis
-   atasnya menempel ke tepi panel, bukan mengambang 16px dari pinggir. */
+/* Kaki catat menempati slot .kaki-sheet, di luar wadah gulir. Latarnya sengaja
+   dibiarkan tembus: yang terlihat adalah gradien panel yang sama, jadi kakinya
+   menyatu dengan form dan bukan kotak tempelan berwarna lain. Isi yang digulir
+   berhenti di atasnya, tidak lewat di bawahnya, jadi tidak perlu latar pekat. */
 .kaki-catat {
-  position: sticky; bottom: calc(-20px - env(safe-area-inset-bottom));
-  margin: 0 -16px calc(-20px - env(safe-area-inset-bottom));
   padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
-  background: var(--latar-padat); border-top: 1px solid var(--garis);
+  border-top: 1px solid var(--garis-halus);
 }
 .kaki-jumlah {
   display: flex; align-items: baseline; justify-content: space-between;

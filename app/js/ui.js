@@ -107,12 +107,20 @@ function bukaGulirLatar() {
 
 /** Panel yang naik dari bawah layar. Tutup lewat tombol, latar, atau Esc. */
 export function sheet(judul, isi, opsi = {}) {
+  // Panelnya sendiri tidak menggulir; yang menggulir .gulir-sheet di dalamnya.
+  // .kaki-sheet adalah slot kosong di luar wadah gulir itu — tempat tombol yang
+  // harus selalu kelihatan. Dulu tombol semacam itu dipasang sticky di dalam
+  // wadah gulir, dan hasilnya selalu kurang 14px di kanan (selebar bilah gulir)
+  // sehingga terlihat seperti kotak terpisah yang tidak menyatu dengan panel.
+  const gulir = h('div.gulir-sheet');
+  const kaki = h('div.kaki-sheet');
   const badan = h('div.sheet', { role: 'dialog', 'aria-modal': 'true' },
     h('div.pegangan'),
     h('div.judul-sheet',
       h('h2', judul),
       h('button.tutup', { 'aria-label': 'Tutup', onclick: () => tutup() }, '×')
-    )
+    ),
+    gulir, kaki
   );
   const tirai = h('div.tirai', { onclick: (e) => { if (e.target === tirai) tutup(); } }, badan);
 
@@ -136,7 +144,7 @@ export function sheet(judul, isi, opsi = {}) {
   function padaTombol(e) { if (e.key === 'Escape') tutup(); }
 
   document.addEventListener('keydown', padaTombol);
-  badan.appendChild(isi instanceof Function ? isi(tutup, badan) : isi);
+  gulir.appendChild(isi instanceof Function ? isi(tutup, badan) : isi);
   kunciGulirLatar();
   document.body.appendChild(tirai);
   return tutup;
