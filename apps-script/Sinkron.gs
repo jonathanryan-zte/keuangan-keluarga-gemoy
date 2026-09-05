@@ -39,12 +39,25 @@ var TANDA_HILANG = 'hilang dari sheet lama';
 /** Rencana tanpa mengubah apa pun. Hasilnya ditulis ke tab "Sinkron Cek". */
 function periksaSinkron() {
   var hasil = sinkron_({ periksaSaja: true, pemanggil: 'periksa' });
-  return hasil.pesan + ' Rinciannya ada di tab "' + TAB_SINKRON_CEK + '".';
+  var pesan = hasil.pesan + ' Rinciannya ada di tab "' + TAB_SINKRON_CEK + '".';
+  kabarkan_(pesan, 'Belum ada yang diubah');
+  return pesan;
 }
 
 /** Kerjakan rencananya. Aman diulang. */
 function jalankanSinkron() {
-  return sinkron_({ periksaSaja: false, pemanggil: 'manual' }).pesan;
+  var pesan = sinkron_({ periksaSaja: false, pemanggil: 'manual' }).pesan;
+  kabarkan_(pesan, 'Sinkron selesai');
+  return pesan;
+}
+
+/**
+ * Kabar untuk yang menjalankan dari menu KKG. Dijalankan dari editor Apps
+ * Script, nilai baliknya sudah cukup; dijalankan dari menu, tidak ada yang
+ * muncul sama sekali kalau tidak ditoastkan.
+ */
+function kabarkan_(pesan, judul) {
+  try { ss_().toast(pesan, judul, 15); } catch (e) { /* tanpa UI, mis. dari pemicu */ }
 }
 
 /** Dipanggil pemicu harian. */
