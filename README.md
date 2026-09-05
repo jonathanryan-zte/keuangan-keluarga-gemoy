@@ -59,6 +59,14 @@ seperti di HP.
 - **Merah/hijau tidak pernah berdiri sendiri.** Penanda WAJIB/KEINGINAN selalu
   disertai tulisan, karena merah lawan hijau adalah pasangan terburuk bagi buta
   warna merah-hijau. Hijaunya pun digeser ke arah toska agar terbedakan.
+- **Tidak ada tombol yang menghapus data.** Kategori yang tidak dipakai lagi
+  "disisihkan" — barisnya tetap ada di tab `Kategori` dengan status `arsip`,
+  transaksi lamanya utuh, pagu bulan-bulan lalu tetap tersimpan, dan tombol
+  "Pakai lagi" selalu tersedia. Transaksi dan mutasi saving pun dihapus lunak
+  dengan cara yang sama.
+- **Daftar kategori punya satu sumber**, yaitu tab `Kategori` di Sheet. Layar
+  Anggaran yang mengubahnya, dan perubahan itu langsung terasa di form catat,
+  saringan Riwayat, tagihan rutin, dan pengingat pagi.
 - **Tema mengikuti HP**, tanpa tombol ganti tema.
 - **Efek kaca dimatikan otomatis** kalau pengguna menyalakan pengurangan
   transparansi di pengaturan aksesibilitas.

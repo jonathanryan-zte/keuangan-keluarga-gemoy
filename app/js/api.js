@@ -63,19 +63,25 @@ export function muatAwal(dari) {
 }
 
 /**
- * Kirim transaksi. Kalau jaringan mati, masuk antrian dan dikirim ulang nanti.
- * Pengirimannya idempoten lewat `id`, jadi kirim ulang tidak bikin duplikat.
+ * Kirim satu aksi. Kalau jaringan mati, aksinya masuk antrian dan diulang
+ * nanti. Semua aksi yang dipakai lewat sini idempoten — pengulangan tidak
+ * pernah menghasilkan baris ganda di Sheet.
  */
-export async function kirimTransaksi(daftar) {
+export async function kirimAksi(aksi, data) {
   try {
-    return await panggil('transaksi.simpan', { daftar });
+    return await panggil(aksi, data);
   } catch (e) {
     if (e instanceof GagalJaringan) {
-      await antrian.tambah({ aksi: 'transaksi.simpan', data: { daftar } });
+      await antrian.tambah({ aksi, data });
       return { tertunda: true };
     }
     throw e;
   }
+}
+
+/** Idempoten lewat `id`, jadi kirim ulang tidak bikin transaksi duplikat. */
+export function kirimTransaksi(daftar) {
+  return kirimAksi('transaksi.simpan', { daftar });
 }
 
 /** Kirim ulang seluruh antrian. Dipanggil saat online & saat aplikasi dibuka. */

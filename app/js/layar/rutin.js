@@ -1,6 +1,9 @@
 import { h, roti, kosongkan, sheet, ikon, konfirmasi } from '../ui.js';
 import { rp, rpSingkat, namaBulan, tanggalPanjang, hariIni } from '../rupiah.js';
-import { st, statusRutin, taruhTransaksi, buangTransaksi, umumkan, idTransaksi, PENANDA_RUTIN } from '../toko.js';
+import {
+  st, statusRutin, taruhTransaksi, buangTransaksi, umumkan, idTransaksi,
+  pilihanKategori, PENANDA_RUTIN
+} from '../toko.js';
 import { panggil, kirimTransaksi } from '../api.js';
 
 export function rutin() {
@@ -114,7 +117,7 @@ function bukaUbahRutin(r, gambar) {
       h('input', { type: 'number', inputmode: 'numeric', value: f.nominal || '', oninput: (e) => { f.nominal = Number(e.target.value) || 0; } })),
     h('div.isian', h('label', 'Kategori'),
       h('select', { onchange: (e) => { f.kategori = e.target.value; } },
-        (st.profil.kategori.TETAP || []).map((k) =>
+        pilihanKategori('TETAP', f.kategori).map((k) =>
           h('option', { value: k, selected: f.kategori === k }, k)))),
     h('div.isian', h('label', 'Tanggal jatuh tempo tiap bulan'),
       h('input', { type: 'number', min: '1', max: '31', value: f.hariJatuhTempo, oninput: (e) => { f.hariJatuhTempo = Number(e.target.value) || 1; } })),

@@ -28,8 +28,14 @@ boleh dilewati dulu dan dikerjakan kapan saja nanti — bagian lain tetap jalan.
    Advanced → Go to (nama proyek) → Allow*. Ini wajar — skripnya memang perlu izin
    menulis ke Sheet Anda sendiri.
 
-   Setelah selesai akan muncul tujuh tab baru: `Transaksi`, `Rutin`, `Anggaran`,
-   `Saving`, `Perangkat`, `Pengaturan`, `Ringkasan`. Tab lama Anda tidak disentuh.
+   Setelah selesai akan muncul delapan tab baru: `Transaksi`, `Rutin`, `Anggaran`,
+   `Kategori`, `Saving`, `Perangkat`, `Pengaturan`, `Ringkasan`. Tab lama Anda
+   tidak disentuh.
+
+   > **Kalau Sheet Anda sudah dipasang sebelum tab `Kategori` ada:** jalankan
+   > `siapkanSheet` sekali lagi. Tab `Kategori` akan dibuat dan diisi daftar
+   > bawaan, dan tab `Anggaran` mendapat dua kolom baru (`status`, `diubah`)
+   > tanpa mengubah pagu yang sudah ada.
 
 5. Tetapkan PIN keluarga. **Jangan menjalankan `setPin` langsung dari tombol
    Run** — fungsi itu butuh argumen, sedangkan tombol Run memanggilnya tanpa

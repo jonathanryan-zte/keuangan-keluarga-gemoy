@@ -1,7 +1,10 @@
 import { h, sheet, roti, ikon, kosongkan } from '../ui.js';
 import { rp, bacaNominal, hariIni, tanggalPanjang } from '../rupiah.js';
 import { baca as bacaTeks, tebakKategori, geserHari } from '../parser.js';
-import { st, taruhTransaksi, umumkan, itemSering, idTransaksi } from '../toko.js';
+import {
+  st, taruhTransaksi, umumkan, itemSering, idTransaksi,
+  kategoriAktif, kategoriDisisihkan, kategoriDikenal, pilihanKategori
+} from '../toko.js';
 import { kirimTransaksi } from '../api.js';
 import { lokal } from '../simpanan.js';
 import { formBanyak } from './tambah-banyak.js';
@@ -78,7 +81,12 @@ function sakelarMode(f, gambar) {
 
 function isiForm(f, gambar, tutupSheet) {
   const pemasukan = f.jenis === 'PEMASUKAN';
-  const daftarKategori = st.profil.kategori[f.jenis] || [];
+  // Yang bisa dipilih = kategori aktif. Kategori transaksi yang sedang diubah
+  // ikut ditampilkan walau sudah disisihkan, supaya mengedit belanja lama
+  // tidak diam-diam mengosongkan kategorinya.
+  const kategoriBaru = kategoriAktif(f.jenis);
+  const daftarKategori = pilihanKategori(f.jenis, f.kategori);
+  const arsip = new Set(kategoriDisisihkan(f.jenis));
 
   // --- ketik bebas ---------------------------------------------------------
   const kotakCepat = h('input', {
@@ -95,7 +103,7 @@ function isiForm(f, gambar, tutupSheet) {
     if (hasil.nominal !== null) f.nominal = hasil.nominal;
     if (hasil.item) f.item = hasil.item;
     if (hasil.pastiTanggal) f.tanggal = hasil.tanggal;
-    if (hasil.kategori && daftarKategori.includes(hasil.kategori)) f.kategori = hasil.kategori;
+    if (hasil.kategori && kategoriBaru.includes(hasil.kategori)) f.kategori = hasil.kategori;
     kotakCepat.value = '';
     gambar();
   };
@@ -131,7 +139,7 @@ function isiForm(f, gambar, tutupSheet) {
       f.item = e.target.value;
       if (f.kategori) return;
       const tebak = tebakKategori(f.item, st.transaksi);
-      if (!tebak || !daftarKategori.includes(tebak)) return;
+      if (!tebak || !kategoriBaru.includes(tebak)) return;
       f.kategori = tebak;
       // Cukup nyalakan chip-nya di tempat. Menggambar ulang seluruh form dari
       // dalam oninput membuang <input> yang sedang diketik, dan di HP papan
@@ -146,7 +154,8 @@ function isiForm(f, gambar, tutupSheet) {
   const chipKategori = h('div.chip-baris', daftarKategori.map((k) =>
     h('button.chip', {
       type: 'button', 'data-kategori': k,
-      kelas: f.kategori === k ? 'aktif' : '',
+      kelas: (f.kategori === k ? 'aktif' : '') + (arsip.has(k) ? ' arsip' : ''),
+      title: arsip.has(k) ? 'Kategori ini sudah disisihkan di layar Anggaran' : null,
       'aria-pressed': String(f.kategori === k),
       onclick: () => { f.kategori = f.kategori === k ? '' : k; gambar(); }
     }, k)
@@ -209,7 +218,7 @@ function isiForm(f, gambar, tutupSheet) {
         'aria-pressed': String(f.jenis === nilai),
         onclick: () => {
           f.jenis = nilai;
-          if (!(st.profil.kategori[nilai] || []).includes(f.kategori)) f.kategori = '';
+          if (!kategoriDikenal(nilai, f.kategori)) f.kategori = '';
           gambar();
         }
       }, label)
@@ -224,7 +233,7 @@ function isiForm(f, gambar, tutupSheet) {
           type: 'button',
           onclick: () => {
             f.item = s.item;
-            if (!f.kategori && daftarKategori.includes(s.kategori)) f.kategori = s.kategori;
+            if (!f.kategori && kategoriBaru.includes(s.kategori)) f.kategori = s.kategori;
             gambar();
           }
         }, s.item)

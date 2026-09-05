@@ -78,7 +78,11 @@ function susunPengingat_() {
 function hampirJebol_(bulan) {
   var pagu = {};
   baca_(TAB.ANGGARAN).forEach(function (a) {
-    if (String(a.bulan) === bulan) pagu[String(a.kategori)] = angka_(a.pagu);
+    // keBulan_, bukan String(): Sheets diam-diam mengubah "2026-09" jadi tanggal,
+    // dan pembandingan apa adanya membuat pengingat pagu tidak pernah berbunyi.
+    if (keBulan_(a.bulan) !== bulan) return;
+    if (String(a.status || 'aktif') === 'arsip') return;
+    pagu[String(a.kategori)] = angka_(a.pagu);
   });
   var pakai = {};
   baca_(TAB.TRANSAKSI).forEach(function (t) {

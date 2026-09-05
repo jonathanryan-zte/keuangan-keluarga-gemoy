@@ -20,6 +20,9 @@ export const st = {
       RUMAH_TANGGA: ['Pangan', 'Sandang', 'Papan', 'Hobi', 'Gift', 'Travelling',
                      'Kesehatan', 'Lainnya']
     },
+    // Kategori yang disisihkan. Tidak muncul lagi sebagai pilihan, tapi
+    // namanya tetap dikenali supaya transaksi lama tidak jadi yatim.
+    kategoriArsip: { PEMASUKAN: [], TETAP: [], RUMAH_TANGGA: [] },
     vapidPublik: ''
   },
   transaksi: [],
@@ -59,7 +62,12 @@ export function terapkanMuatan(d) {
   st.rutin = d.rutin || [];
   st.anggaran = d.anggaran || [];
   st.saving = d.saving || [];
-  if (d.profil) st.profil = { ...st.profil, ...d.profil };
+  if (d.profil) {
+    st.profil = {
+      ...st.profil, ...d.profil,
+      kategoriArsip: { ...st.profil.kategoriArsip, ...(d.profil.kategoriArsip || {}) }
+    };
+  }
   st.siap = true;
   simpanCache();
 }
@@ -168,26 +176,130 @@ function bulanSaja(v) {
   return String(v || '').slice(0, 7);
 }
 
+/** Pagu yang masih berlaku — yang sudah disisihkan tidak ikut berhitung. */
+function paguHidup(bulan) {
+  return st.anggaran.filter((a) => bulanSaja(a.bulan) === bulan && !disisihkan(a));
+}
+
+function disisihkan(a) {
+  return String(a.status || 'aktif') === 'arsip';
+}
+
 export function anggaranBulan(bulan = st.bulan) {
   const pakai = new Map(perKategori(bulan).map((x) => [x.kategori, x.nominal]));
-  const pagu = new Map(
-    st.anggaran.filter((a) => bulanSaja(a.bulan) === bulan).map((a) => [a.kategori, a.pagu])
-  );
-  // Kalau bulan ini belum punya pagu, pakai pagu bulan terakhir yang ada.
+  const arsip = new Set(kategoriDisisihkan('RUMAH_TANGGA'));
+  const pagu = new Map(paguHidup(bulan).map((a) => [a.kategori, a.pagu]));
+  // Kalau bulan ini belum punya pagu, pakai pagu bulan terakhir yang ada —
+  // kecuali kategori yang sejak itu sudah disisihkan. Mewariskan pagu kategori
+  // yang sudah ditinggalkan sama saja menghidupkannya diam-diam.
   if (!pagu.size) {
-    const bulanPagu = [...new Set(st.anggaran.map((a) => bulanSaja(a.bulan)))]
+    const bulanPagu = [...new Set(st.anggaran.filter((a) => !disisihkan(a)).map((a) => bulanSaja(a.bulan)))]
       .filter((b) => b && b < bulan).sort().pop();
     if (bulanPagu) {
-      st.anggaran.filter((a) => bulanSaja(a.bulan) === bulanPagu)
-        .forEach((a) => pagu.set(a.kategori, a.pagu));
+      paguHidup(bulanPagu).forEach((a) => { if (!arsip.has(a.kategori)) pagu.set(a.kategori, a.pagu); });
     }
   }
   const kategori = new Set([...pagu.keys(), ...pakai.keys()]);
-  return [...kategori].map((k) => {
-    const p = pagu.get(k) || 0;
-    const t = pakai.get(k) || 0;
-    return { kategori: k, pagu: p, terpakai: t, persen: p ? (t / p) * 100 : null };
-  }).sort((a, b) => (b.pagu || 0) - (a.pagu || 0) || b.terpakai - a.terpakai);
+  return [...kategori]
+    // Kategori yang sudah disisihkan dan tidak dipakai bulan ini tidak perlu
+    // menuh-menuhi layar. Kalau masih ada belanjanya, tetap ditampilkan —
+    // angka di layar Anggaran harus selalu sama dengan angka di Beranda.
+    .filter((k) => !arsip.has(k) || (pakai.get(k) || 0) > 0)
+    .map((k) => {
+      const p = pagu.get(k) || 0;
+      const t = pakai.get(k) || 0;
+      return {
+        kategori: k, pagu: p, terpakai: t,
+        persen: p ? (t / p) * 100 : null, arsip: arsip.has(k)
+      };
+    })
+    .sort((a, b) => Number(a.arsip) - Number(b.arsip) ||
+                    (b.pagu || 0) - (a.pagu || 0) || b.terpakai - a.terpakai);
+}
+
+/** Pagu bulan ini yang pernah ada tapi sudah disisihkan — riwayatnya. */
+export function paguDisisihkan(bulan = st.bulan) {
+  return st.anggaran
+    .filter((a) => bulanSaja(a.bulan) === bulan && disisihkan(a))
+    .map((a) => ({ kategori: a.kategori, pagu: a.pagu }))
+    .sort((a, b) => b.pagu - a.pagu);
+}
+
+// ---------------------------------------------------------------- kategori --
+//
+// Daftar kategori datang dari tab `Kategori` di Sheet. Yang disisihkan tidak
+// dibuang, hanya dipindah ke `kategoriArsip` — jadi transaksi lama tetap punya
+// nama yang dikenali, dan kategorinya bisa dipakai lagi kapan saja.
+
+export function kategoriAktif(jenis) {
+  return st.profil.kategori?.[jenis] || [];
+}
+
+export function kategoriDisisihkan(jenis) {
+  return st.profil.kategoriArsip?.[jenis] || [];
+}
+
+/**
+ * Pilihan kategori untuk form. Kategori yang sedang terpilih ikut ditampilkan
+ * walau sudah disisihkan — kalau tidak, mengedit transaksi lama diam-diam
+ * mengosongkan kategorinya.
+ */
+export function pilihanKategori(jenis, terpilih) {
+  const aktif = kategoriAktif(jenis);
+  return terpilih && !aktif.includes(terpilih) ? [...aktif, terpilih] : aktif;
+}
+
+/** Kategori ini pernah ada di jenis tersebut — aktif maupun sudah disisihkan. */
+export function kategoriDikenal(jenis, nama) {
+  return kategoriAktif(jenis).includes(nama) || kategoriDisisihkan(jenis).includes(nama);
+}
+
+/** Berapa transaksi yang masih memakai kategori ini — untuk peringatan. */
+export function pemakaiKategori(jenis, nama) {
+  return st.transaksi.filter((t) => t.jenis === jenis && t.kategori === nama).length;
+}
+
+function daftarProfil(kunci, jenis) {
+  if (!st.profil[kunci]) st.profil[kunci] = {};
+  if (!st.profil[kunci][jenis]) st.profil[kunci][jenis] = [];
+  return st.profil[kunci][jenis];
+}
+
+function buang(daftar, nama) {
+  const i = daftar.indexOf(nama);
+  if (i >= 0) daftar.splice(i, 1);
+}
+
+/**
+ * Ubah daftar kategori di memori lebih dulu, kirim ke Sheet belakangan.
+ * Layar langsung berubah walau sinyal sedang mati.
+ */
+export function pakaiKategori(jenis, nama) {
+  buang(daftarProfil('kategoriArsip', jenis), nama);
+  const aktif = daftarProfil('kategori', jenis);
+  if (!aktif.includes(nama)) aktif.push(nama);
+  simpanCache();
+}
+
+export function sisihkanKategori(jenis, nama, sejak = st.bulan) {
+  buang(daftarProfil('kategori', jenis), nama);
+  const arsip = daftarProfil('kategoriArsip', jenis);
+  if (!arsip.includes(nama)) arsip.push(nama);
+  // Pagu bulan berjalan dan sesudahnya ikut disisihkan; bulan yang sudah lewat
+  // dibiarkan utuh sebagai riwayat. Aturannya sama persis dengan Apps Script.
+  st.anggaran.forEach((a) => {
+    if (a.kategori === nama && bulanSaja(a.bulan) >= sejak) a.status = 'arsip';
+  });
+  simpanCache();
+}
+
+/** Sisipkan/ganti satu pagu di memori. */
+export function taruhPagu(rekam) {
+  const i = st.anggaran.findIndex(
+    (a) => bulanSaja(a.bulan) === rekam.bulan && a.kategori === rekam.kategori);
+  const isi = { ...rekam, status: 'aktif' };
+  if (i >= 0) st.anggaran[i] = isi; else st.anggaran.push(isi);
+  simpanCache();
 }
 
 // -------------------------------------------------------------------- rutin --

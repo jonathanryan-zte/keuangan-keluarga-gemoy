@@ -68,10 +68,16 @@
   display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px;
 }
 .kartu .kepala-kartu h2 { min-width: 0; }
-.kartu .kepala-kartu .aksi {
-  margin-left: auto; font-size: 13px; color: var(--tosca); font-weight: 600;
+/* Tautan aksi kecil. Dipakai di kepala kartu maupun di dalam baris daftar,
+   jadi posisinya (margin-left) diserahkan ke tempatnya berdiri. */
+.aksi {
+  font-size: 13px; color: var(--tosca); font-weight: 600;
   white-space: nowrap; flex: none;
 }
+.kartu .kepala-kartu .aksi { margin-left: auto; }
+/* Di dalam baris daftar, .aksi berdiri sendiri sebagai tombol — perlu bidang
+   sentuh yang layak di HP, bukan sekadar tinggi barisan teksnya. */
+.rutin-baris .aksi { min-height: 40px; padding: 0 2px; }
 
 /* --------------------------------------------------------- kartu sisa ---- */
 
@@ -488,6 +494,14 @@ body.kunci-gulir { position: fixed; left: 0; right: 0; overflow: hidden; }
 .pagu .isi.aman { background: linear-gradient(90deg, var(--tosca-terang), var(--tosca)); }
 .pagu .isi.hampir { background: linear-gradient(90deg, #FBBF24, #F59E0B); }
 .pagu .isi.jebol { background: linear-gradient(90deg, var(--claude-1), var(--wajib)); }
+
+/* Kategori yang disisihkan tapi masih ada belanjanya bulan ini. Tetap terbaca
+   penuh — angkanya masih ikut total — hanya diredupkan supaya jelas ia bukan
+   bagian dari pagu yang sedang dijalankan. */
+.pagu.arsip .atas .nama { color: var(--tinta-lembut); }
+.pagu.arsip .jalur { opacity: 0.45; }
+.chip.arsip { border-style: dashed; color: var(--tinta-samar); }
+.chip.arsip.aktif { border-style: solid; color: #fff; }
 
 /* ---------------------------------------------------------------- rutin -- */
 

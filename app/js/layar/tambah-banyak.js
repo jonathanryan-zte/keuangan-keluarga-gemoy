@@ -12,7 +12,7 @@
 import { h, roti, ikon, kosongkan } from '../ui.js';
 import { rp, bacaNominal, hariIni, tanggalPanjang } from '../rupiah.js';
 import { bacaBanyak, geserHari } from '../parser.js';
-import { st, taruhTransaksi, umumkan, idTransaksi } from '../toko.js';
+import { st, taruhTransaksi, umumkan, idTransaksi, kategoriAktif } from '../toko.js';
 import { kirimTransaksi } from '../api.js';
 
 const CONTOH = 'galon 56500\ntelur 2 rak 78rb\nbakso chukul 59rb kemarin';
@@ -41,7 +41,7 @@ export function formBanyak(f, gambar, tutupSheet, slotKaki) {
   // mengganti tanggal atau jenis tidak boleh menghapus koreksi yang sudah
   // dikerjakan.
   if (!f.baris) f.baris = [];
-  const daftarKategori = st.profil.kategori[f.jenis] || [];
+  const daftarKategori = kategoriAktif(f.jenis);
   const pemasukan = f.jenis === 'PEMASUKAN';
 
   // --- kotak tempel --------------------------------------------------------
@@ -190,7 +190,7 @@ export function formBanyak(f, gambar, tutupSheet, slotKaki) {
           f.jenis = nilai;
           // Kategori yang tidak ada di jenis baru dikosongkan, bukan dibiarkan
           // menunjuk daftar yang salah.
-          const sah = st.profil.kategori[nilai] || [];
+          const sah = kategoriAktif(nilai);
           f.baris.forEach((b) => { if (!sah.includes(b.kategori)) b.kategori = ''; });
           gambar();
         }
