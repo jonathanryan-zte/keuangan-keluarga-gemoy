@@ -125,10 +125,15 @@ function isiForm(f, gambar, tutupSheet) {
     placeholder: pemasukan ? 'Gaji Pokok Thesa' : 'Belanja Bravo',
     oninput: (e) => {
       f.item = e.target.value;
-      if (!f.kategori) {
-        const tebak = tebakKategori(f.item, st.transaksi);
-        if (tebak && daftarKategori.includes(tebak)) { f.kategori = tebak; gambar(); }
-      }
+      if (f.kategori) return;
+      const tebak = tebakKategori(f.item, st.transaksi);
+      if (!tebak || !daftarKategori.includes(tebak)) return;
+      f.kategori = tebak;
+      // Cukup nyalakan chip-nya di tempat. Menggambar ulang seluruh form dari
+      // dalam oninput membuang <input> yang sedang diketik, dan di HP papan
+      // ketiknya ikut tertutup — persis begitu huruf pertama sudah cukup untuk
+      // menebak kategorinya.
+      tandaiKategori();
     }
   });
   const saran = itemSering(f.jenis, 8);
@@ -136,11 +141,20 @@ function isiForm(f, gambar, tutupSheet) {
   // --- kategori ------------------------------------------------------------
   const chipKategori = h('div.chip-baris', daftarKategori.map((k) =>
     h('button.chip', {
-      type: 'button', kelas: f.kategori === k ? 'aktif' : '',
+      type: 'button', 'data-kategori': k,
+      kelas: f.kategori === k ? 'aktif' : '',
       'aria-pressed': String(f.kategori === k),
       onclick: () => { f.kategori = f.kategori === k ? '' : k; gambar(); }
     }, k)
   ));
+  /** Menyelaraskan chip kategori dengan f.kategori tanpa membangun ulang DOM. */
+  const tandaiKategori = () => {
+    for (const chip of chipKategori.children) {
+      const aktif = chip.dataset.kategori === f.kategori;
+      chip.classList.toggle('aktif', aktif);
+      chip.setAttribute('aria-pressed', String(aktif));
+    }
+  };
 
   // --- tanggal -------------------------------------------------------------
   const kotakTanggal = h('input', {

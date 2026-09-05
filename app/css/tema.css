@@ -104,6 +104,10 @@ html, body {
   min-height: 100%;
 }
 
+/* Tanpa ini Safari iOS ikut membesarkan teks sendiri saat HP diputar ke
+   lanskap, dan tata letaknya melar tidak beraturan. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
 body {
   font-family: var(--font);
   color: var(--tinta);
@@ -155,6 +159,13 @@ button, input, select, textarea {
   font-size: inherit;
   color: inherit;
 }
+
+/* Kotak isian tidak pernah boleh di bawah 16px. Safari iOS memperbesar
+   halamannya sendiri begitu field yang lebih kecil dari itu disentuh, dan
+   sesudah membesar halamannya jadi bisa digeser kiri-kanan — itu yang bikin
+   form-nya terasa goyah dan gampang ke-zoom. Yang dinaikkan ukuran hurufnya,
+   bukan pinch-zoom-nya yang dimatikan: yang butuh memperbesar tetap bisa. */
+input, select, textarea { font-size: 16px; }
 
 button { cursor: pointer; border: none; background: none; padding: 0; }
 

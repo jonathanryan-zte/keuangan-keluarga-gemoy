@@ -8,8 +8,41 @@ const saring = { jenis: '', kategori: '', sifat: '', cari: '' };
 
 export function riwayat() {
   const wadah = h('div.papan');
-  const gambar = () => { kosongkan(wadah); wadah.appendChild(isi(gambar)); };
+
+  // Kotak cari sengaja dibuat sekali dan hidup di luar bagian yang digambar
+  // ulang. Sebelumnya ia ikut dibuang tiap ketukan: elemen yang sedang difokus
+  // hilang dari DOM, fokusnya lepas, dan papan ketik HP menutup sendiri
+  // sesudah satu huruf.
+  const kotakCari = h('input', {
+    type: 'search', value: saring.cari, placeholder: 'Cari nama transaksi…',
+    'aria-label': 'Cari transaksi'
+  });
+
+  const wadahSaring = h('div');
+  const wadahDaftar = h('div.kaca.kartu');
+  const gambar = () => {
+    kosongkan(wadahSaring);
+    kosongkan(wadahDaftar);
+    const { saringan, daftar } = isi(gambar);
+    wadahSaring.appendChild(saringan);
+    wadahDaftar.appendChild(daftar);
+  };
+
+  // Menyaring ditunda sebentar: mengetik cepat tidak perlu menyusun ulang
+  // seluruh daftar per huruf.
+  let tunda;
+  kotakCari.addEventListener('input', () => {
+    saring.cari = kotakCari.value;
+    clearTimeout(tunda);
+    tunda = setTimeout(gambar, 140);
+  });
+
   gambar();
+  wadah.appendChild(h('div.kaca.kartu',
+    h('div.isian', { gaya: { marginBottom: '10px' } }, kotakCari),
+    wadahSaring
+  ));
+  wadah.appendChild(wadahDaftar);
   return wadah;
 }
 
@@ -33,48 +66,41 @@ function isi(gambar) {
 
   const kategoriAda = [...new Set(transaksiBulan().map((t) => t.kategori).filter(Boolean))].sort();
 
-  return h('div',
-    h('div.kaca.kartu',
-      h('div.isian', { gaya: { marginBottom: '10px' } },
-        h('input', {
-          type: 'search', value: saring.cari, placeholder: 'Cari nama transaksi…',
-          'aria-label': 'Cari transaksi',
-          oninput: (e) => { saring.cari = e.target.value; gambar(); }
-        })
-      ),
-      h('div.gulir-x',
-        h('div.chip-baris', { gaya: { flexWrap: 'nowrap', paddingBottom: '2px' } },
-          pilihan('Semua', !saring.jenis && !saring.sifat, () => { saring.jenis = ''; saring.sifat = ''; gambar(); }),
-          pilihan('Rumah tangga', saring.jenis === 'RUMAH_TANGGA', () => { saring.jenis = 'RUMAH_TANGGA'; gambar(); }),
-          pilihan('Tetap', saring.jenis === 'TETAP', () => { saring.jenis = 'TETAP'; gambar(); }),
-          pilihan('Pemasukan', saring.jenis === 'PEMASUKAN', () => { saring.jenis = 'PEMASUKAN'; gambar(); }),
-          pilihan('Wajib', saring.sifat === 'WAJIB', () => { saring.sifat = saring.sifat === 'WAJIB' ? '' : 'WAJIB'; gambar(); }),
-          pilihan('Keinginan', saring.sifat === 'KEINGINAN', () => { saring.sifat = saring.sifat === 'KEINGINAN' ? '' : 'KEINGINAN'; gambar(); })
-        )
-      ),
-      kategoriAda.length ? h('div.gulir-x', { gaya: { marginTop: '7px' } },
-        h('div.chip-baris', { gaya: { flexWrap: 'nowrap' } },
-          kategoriAda.map((k) => pilihan(k, saring.kategori === k,
-            () => { saring.kategori = saring.kategori === k ? '' : k; gambar(); }))
-        )
-      ) : null,
-      h('p.mini.samar', { gaya: { marginTop: '10px' } },
-        `${daftar.length} transaksi · ${rp(daftar.reduce((a, b) => a + b.nominal, 0))}`)
+  const saringan = h('div',
+    h('div.gulir-x',
+      h('div.chip-baris', { gaya: { flexWrap: 'nowrap', paddingBottom: '2px' } },
+        pilihan('Semua', !saring.jenis && !saring.sifat, () => { saring.jenis = ''; saring.sifat = ''; gambar(); }),
+        pilihan('Rumah tangga', saring.jenis === 'RUMAH_TANGGA', () => { saring.jenis = 'RUMAH_TANGGA'; gambar(); }),
+        pilihan('Tetap', saring.jenis === 'TETAP', () => { saring.jenis = 'TETAP'; gambar(); }),
+        pilihan('Pemasukan', saring.jenis === 'PEMASUKAN', () => { saring.jenis = 'PEMASUKAN'; gambar(); }),
+        pilihan('Wajib', saring.sifat === 'WAJIB', () => { saring.sifat = saring.sifat === 'WAJIB' ? '' : 'WAJIB'; gambar(); }),
+        pilihan('Keinginan', saring.sifat === 'KEINGINAN', () => { saring.sifat = saring.sifat === 'KEINGINAN' ? '' : 'KEINGINAN'; gambar(); })
+      )
     ),
-
-    h('div.kaca.kartu',
-      perHari.size
-        ? [...perHari.entries()].map(([tanggal, isiHari]) => h('div',
-            h('div.hari-judul',
-              h('span', tanggalPanjang(tanggal)),
-              h('span.total.angka', rp(isiHari.reduce((a, b) =>
-                a + (b.jenis === 'PEMASUKAN' ? 0 : b.nominal), 0)))
-            ),
-            h('div.daftar', isiHari.map((t) => barisTransaksi(t, gambar)))
-          ))
-        : h('p.kosong', 'Tidak ada yang cocok dengan saringan ini.')
-    )
+    kategoriAda.length ? h('div.gulir-x', { gaya: { marginTop: '7px' } },
+      h('div.chip-baris', { gaya: { flexWrap: 'nowrap' } },
+        kategoriAda.map((k) => pilihan(k, saring.kategori === k,
+          () => { saring.kategori = saring.kategori === k ? '' : k; gambar(); }))
+      )
+    ) : null,
+    h('p.mini.samar', { gaya: { marginTop: '10px' } },
+      `${daftar.length} transaksi · ${rp(daftar.reduce((a, b) => a + b.nominal, 0))}`)
   );
+
+  const isiDaftar = h('div',
+    perHari.size
+      ? [...perHari.entries()].map(([tanggal, isiHari]) => h('div',
+          h('div.hari-judul',
+            h('span', tanggalPanjang(tanggal)),
+            h('span.total.angka', rp(isiHari.reduce((a, b) =>
+              a + (b.jenis === 'PEMASUKAN' ? 0 : b.nominal), 0)))
+          ),
+          h('div.daftar', isiHari.map((t) => barisTransaksi(t, gambar)))
+        ))
+      : h('p.kosong', 'Tidak ada yang cocok dengan saringan ini.')
+  );
+
+  return { saringan, daftar: isiDaftar };
 }
 
 function pilihan(label, aktif, onclick) {

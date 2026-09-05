@@ -181,7 +181,12 @@
 .nav a.aktif { color: var(--tosca); }
 .nav a svg { width: 22px; height: 22px; }
 .nav .tambah {
-  align-self: center; width: 54px; height: 54px; border-radius: 50%;
+  /* justify-self wajib ditulis. Bawaannya `stretch`, tapi tombolnya punya
+     lebar tetap — dan anak grid dengan lebar tetap yang di-stretch jatuh ke
+     `start`, jadi lingkarannya menempel ke tepi kiri kolomnya sendiri, meleset
+     ~8px dari tengah bilah. */
+  justify-self: center; align-self: center;
+  width: 54px; height: 54px; border-radius: 50%;
   background: var(--claude); color: #fff; display: grid; place-items: center;
   box-shadow: 0 8px 20px -6px rgba(217,119,87,0.75); margin-top: -22px;
   transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -228,20 +233,39 @@ body.kunci-gulir { position: fixed; left: 0; right: 0; overflow: hidden; }
 @keyframes turun { from { transform: none; opacity: 1 } to { transform: translateY(18px); opacity: 0 } }
 
 .sheet {
-  width: 100%; max-height: 92vh; overflow-y: auto;
+  /* dvh, bukan vh: di HP vh dihitung dari layar penuh termasuk bagian yang
+     tertutup bilah alamat, jadi kaki sheet-nya kepotong. */
+  width: 100%; max-height: 92vh; max-height: 92dvh;
+  /* Sheet hanya boleh bergerak naik-turun. clip, bukan hidden, supaya tidak
+     ikut jadi wadah gulir mendatar kalau suatu saat ada isi yang kelewat
+     lebar — yang mau digulir mendatar mengurus overflow-nya sendiri
+     (lihat .gulir-x). */
+  overflow-y: auto; overflow-x: clip;
   background: var(--latar-padat); background-image: var(--latar);
   border-radius: var(--r-besar) var(--r-besar) 0 0;
-  border-top: 1px solid var(--garis);
   padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
   animation: naik 0.22s cubic-bezier(0.32, 0.72, 0, 1);
   transition: box-shadow 0.18s ease;
-  scrollbar-width: thin; scrollbar-color: var(--tinta-samar) transparent;
 }
-.sheet::-webkit-scrollbar { width: 5px; }
-.sheet::-webkit-scrollbar-track { background: transparent; }
-.sheet::-webkit-scrollbar-thumb { background: var(--tinta-samar); border-radius: 999px; }
+
+/* Bilah gulir ditarik masuk ke dalam panel. Sebelumnya ia digambar tepat di
+   batas sheet dan menyilang lengkung sudutnya, jadi kelihatan berdiri sendiri
+   di luar panel — "offside" yang sama seperti scrollbar halaman dulu.
+   Caranya: bilahnya dilebarkan, lalu ibu jarinya dikecilkan lagi lewat border
+   transparan + background-clip, jadi yang terlihat berjarak dari tepi tanpa
+   perlu mengubah susunan sheet. Track diberi margin atas-bawah supaya ibu
+   jarinya tidak pernah sampai ke daerah sudut membulat.
+   Catatan: scrollbar-width/-color sengaja tidak dipakai — begitu keduanya ada,
+   Chrome mengabaikan seluruh aturan ::-webkit-scrollbar di bawah ini. */
+.sheet::-webkit-scrollbar { width: 14px; }
+.sheet::-webkit-scrollbar-track { background: transparent; margin: 18px 0; }
+.sheet::-webkit-scrollbar-thumb {
+  background: var(--tinta-samar);
+  border: 4px solid transparent; background-clip: padding-box;
+  border-radius: 999px;
+}
 @media (min-width: 700px) {
-  .sheet { max-width: 480px; border-radius: var(--r-besar); border: 1px solid var(--garis); }
+  .sheet { max-width: 480px; border-radius: var(--r-besar); }
 }
 
 /* Aksen sheet mengikuti mode & sifat pengeluaran — merah untuk wajib, hijau
@@ -348,6 +372,10 @@ body.kunci-gulir { position: fixed; left: 0; right: 0; overflow: hidden; }
   padding: 10px 12px; border-radius: var(--r-kecil);
   background: var(--kaca-pekat); border: 1px solid var(--garis-halus);
   border-left: 3px solid transparent;
+  /* Anak grid bawaannya min-width:auto, jadi kartu ini melebar mengikuti isi
+     terlebarnya, bukan mengikuti lebar sheet. Di layar 320px itu membuat
+     panelnya sendiri bisa digeser ke kanan sejauh ~80px. */
+  min-width: 0;
 }
 .baris-catat.perlu { border-left-color: var(--wajib); background: var(--wajib-lembut); }
 .baris-catat .baris-atas { display: flex; gap: 7px; align-items: center; }
@@ -355,7 +383,7 @@ body.kunci-gulir { position: fixed; left: 0; right: 0; overflow: hidden; }
   display: flex; gap: 7px; align-items: center; margin-top: 7px; flex-wrap: wrap;
 }
 .baris-catat input, .baris-catat select {
-  padding: 9px 10px; border-radius: var(--r-kecil); font-size: 14px;
+  padding: 9px 10px; border-radius: var(--r-kecil);
   border: 1px solid var(--garis-halus); background: var(--latar-padat);
   outline: none; min-width: 0;
 }
@@ -363,7 +391,7 @@ body.kunci-gulir { position: fixed; left: 0; right: 0; overflow: hidden; }
   border-color: var(--tosca); box-shadow: 0 0 0 3px rgba(20,184,196,0.16);
 }
 .baris-catat .baris-atas input:first-child { flex: 1; }
-.baris-catat .baris-atas input.angka { width: 108px; flex: none; text-align: right; font-weight: 650; }
+.baris-catat .baris-atas input.angka { width: 116px; flex: none; text-align: right; font-weight: 650; }
 .baris-catat select { flex: 1 1 130px; min-width: 130px; }
 .baris-catat .buang {
   width: 30px; height: 30px; flex: none; border-radius: 50%;
