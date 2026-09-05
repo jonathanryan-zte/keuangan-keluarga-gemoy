@@ -1,6 +1,6 @@
 import { h, ikon } from '../ui.js';
 import { rp, rpSingkat, desimal, namaBulan, tanggalPanjang, bulanIni, geserBulan } from '../rupiah.js';
-import { st, ringkas, perKategori, laju, transaksiBulan, jatuhTempoDekat, saldoSaving, anggaranBulan } from '../toko.js';
+import { st, ringkas, perKategori, laju, transaksiBulan, jatuhTempoDekat, saldoSaving, anggaranBulan, belanjaAktif } from '../toko.js';
 import { batangKategori, garisTren, batangSifat } from '../grafik.js';
 import { bukaTambah } from './tambah.js';
 import { barisTransaksi } from './riwayat.js';
@@ -10,12 +10,14 @@ export function beranda() {
   const l = laju();
   const kat = perKategori();
   const tempo = jatuhTempoDekat(7);
+  const belanja = belanjaAktif();
 
   return h('div.papan.dua',
     h('div.papan',
       kartuSisa(r, l),
       kartuAngka(r, l),
       tempo.length ? kartuTempo(tempo) : null,
+      belanja.length ? kartuBelanja(belanja) : null,
       kartuKategori(kat, r)
     ),
     h('div.papan',
@@ -84,6 +86,31 @@ function kartuTempo(tempo) {
       gaya: { marginTop: '12px' },
       onclick: () => { st.layar = 'rutin'; window.dispatchEvent(new Event('kkg:render')); }
     }, 'Buka daftar tagihan')
+  );
+}
+
+/**
+ * Pengingat kecil, bukan salinan layarnya: cukup untuk tahu daftarnya belum
+ * kosong sebelum berangkat. Mencentangnya tetap di layar Belanja, supaya tidak
+ * ada dua tempat yang bisa mengubah hal yang sama.
+ */
+function kartuBelanja(daftar) {
+  return h('div.kaca.kartu',
+    h('div.kepala-kartu',
+      ikon('keranjang', 18),
+      h('h2', 'Daftar belanja'),
+      h('span.lencana.netral', String(daftar.length))
+    ),
+    daftar.slice(0, 5).map((b) => h('div.rutin-baris',
+      h('div', { gaya: { flex: '1', minWidth: '0' } }, b.nama)
+    )),
+    daftar.length > 5
+      ? h('p.mini.samar', { gaya: { marginTop: '8px' } }, `dan ${daftar.length - 5} lagi`)
+      : null,
+    h('button.tombol.hantu.lebar', {
+      gaya: { marginTop: '12px' },
+      onclick: () => { st.layar = 'belanja'; window.dispatchEvent(new Event('kkg:render')); }
+    }, 'Buka daftar belanja')
   );
 }
 

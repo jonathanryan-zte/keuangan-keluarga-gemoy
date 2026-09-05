@@ -31,6 +31,27 @@ function baruKosong() {
 }
 
 /**
+ * Teks bebas (satu transaksi per baris) menjadi baris form.
+ *
+ * Dipakai kotak tempel di layar ini dan jembatan dari Daftar Belanja, supaya
+ * keduanya menebak kategori dan tanggal dengan aturan yang sama persis.
+ * Baris tanpa angka aman: parser mengembalikan nominal null, jadi barisnya
+ * datang dengan nama dan kategori terisi tapi harga masih kosong.
+ */
+export function barisDariTeks(teks, jenis = 'RUMAH_TANGGA') {
+  const daftarKategori = kategoriAktif(jenis);
+  return bacaBanyak(teks, { riwayat: st.transaksi, bulanAktif: st.bulan }).map((p) => ({
+    kunci: idTransaksi(),
+    mentah: p.mentah,
+    item: p.item || p.mentah,
+    nominal: p.nominal || 0,
+    kategori: daftarKategori.includes(p.kategori) ? p.kategori : '',
+    sifat: 'KEINGINAN',   // bawaan, sama seperti mode satuan
+    tanggal: p.pastiTanggal ? p.tanggal : null   // null = ikut tanggal bersama
+  }));
+}
+
+/**
  * @param {object} f Keadaan form yang dibagi dengan mode satuan (jenis, tanggal).
  * @param {Function} gambar Menggambar ulang seluruh isi sheet.
  * @param {Function} tutupSheet
@@ -52,7 +73,7 @@ export function formBanyak(f, gambar, tutupSheet, slotKaki) {
   });
 
   const bacaKotak = () => {
-    const hasil = bacaBanyak(kotak.value, { riwayat: st.transaksi, bulanAktif: st.bulan });
+    const hasil = barisDariTeks(kotak.value, f.jenis);
     if (!hasil.length) {
       roti('Belum ada yang bisa dibaca. Tulis satu transaksi per baris.', 'salah');
       return;
@@ -61,17 +82,7 @@ export function formBanyak(f, gambar, tutupSheet, slotKaki) {
     // baris yang sudah dirapikan. Yang dibuang cuma baris kosong, supaya hasil
     // tempelan tidak menyelip di atasnya.
     f.baris = f.baris.filter((b) => !barisKosong(b));
-    for (const p of hasil) {
-      f.baris.push({
-        kunci: idTransaksi(),
-        mentah: p.mentah,
-        item: p.item || p.mentah,
-        nominal: p.nominal || 0,
-        kategori: daftarKategori.includes(p.kategori) ? p.kategori : '',
-        sifat: 'KEINGINAN',   // bawaan, sama seperti mode satuan
-        tanggal: p.pastiTanggal ? p.tanggal : null   // null = ikut tanggal bersama
-      });
-    }
+    f.baris.push(...hasil);
     kotak.value = '';
     gambar();
   };

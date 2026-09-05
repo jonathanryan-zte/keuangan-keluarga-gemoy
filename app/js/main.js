@@ -8,6 +8,7 @@ import { beranda } from './layar/beranda.js';
 import { riwayat } from './layar/riwayat.js';
 import { anggaran } from './layar/anggaran.js';
 import { rutin } from './layar/rutin.js';
+import { belanja } from './layar/belanja.js';
 import { laporan } from './layar/laporan.js';
 import { pengaturan } from './layar/pengaturan.js';
 
@@ -16,8 +17,12 @@ const LAYAR = {
   riwayat: { judul: 'Riwayat', ikon: 'riwayat', buat: riwayat },
   anggaran: { judul: 'Anggaran', ikon: 'anggaran', buat: anggaran },
   rutin: { judul: 'Tagihan', ikon: 'rutin', buat: rutin },
+  // `tanpaBulan`: layar yang isinya tidak terikat bulan. Daftar belanja dan
+  // Pengaturan tidak punya versi "September" — pemilih bulan di atasnya bukan
+  // cuma tidak berguna, tapi menyesatkan, seolah daftarnya berganti tiap bulan.
+  belanja: { judul: 'Belanja', ikon: 'keranjang', buat: belanja, tanpaBulan: true },
   laporan: { judul: 'Laporan', ikon: 'laporan', buat: laporan },
-  pengaturan: { judul: 'Pengaturan', ikon: 'gigi', buat: pengaturan }
+  pengaturan: { judul: 'Pengaturan', ikon: 'gigi', buat: pengaturan, tanpaBulan: true }
 };
 const NAV = ['beranda', 'riwayat', null, 'anggaran', 'rutin'];
 
@@ -120,13 +125,15 @@ function kepala() {
       h('div.kanan',
         st.antri ? h('span.status-sinkron.antri', h('span.titik'), String(st.antri)) : null,
         !st.online ? h('span.status-sinkron.mati', h('span.titik'), 'Luring') : null,
-        // Laporan & Pengaturan tidak muat di bilah bawah, jadi ditaruh di sini
-        // sebagai ikon — bukan diulang sebagai chip yang menduplikasi navigasi.
+        // Belanja, Laporan & Pengaturan tidak muat di bilah bawah, jadi ditaruh
+        // di sini sebagai ikon — bukan diulang sebagai chip yang menduplikasi
+        // navigasi.
+        tombolKepala('belanja'),
         tombolKepala('laporan'),
         tombolKepala('pengaturan')
       )
     ),
-    h('div.baris-bulan',
+    LAYAR[st.layar].tanpaBulan ? null : h('div.baris-bulan',
       h('div.pilih-bulan',
         h('button', { 'aria-label': 'Bulan sebelumnya', onclick: () => pindah(-1) }, ikon('panahKiri', 16)),
         h('div.label', namaBulan(st.bulan)),

@@ -70,7 +70,8 @@ const IKON = {
   lonceng: '<path d="M18 8A6 6 0 1 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
   pena: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   sampah: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/>',
-  kilat: '<path d="M13 2 3 14h9l-1 8 10-12h-9Z"/>'
+  kilat: '<path d="M13 2 3 14h9l-1 8 10-12h-9Z"/>',
+  keranjang: '<path d="M4 8h16l-1.4 10.2a2 2 0 0 1-2 1.8H7.4a2 2 0 0 1-2-1.8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>'
 };
 
 let waktuRoti;
@@ -114,13 +115,15 @@ export function sheet(judul, isi, opsi = {}) {
   // sehingga terlihat seperti kotak terpisah yang tidak menyatu dengan panel.
   const gulir = h('div.gulir-sheet');
   const kaki = h('div.kaki-sheet');
+  // Satu kendali saja di kepala sheet: garisnya. Sebelumnya ada garis untuk
+  // ditarik dan tombol × untuk ditekan — dua kendali untuk satu maksud yang
+  // sama. Garisnya kini sebuah <button> sungguhan, jadi ditekan tetap menutup
+  // (dan tetap kejangkau papan ketik & pembaca layar), sementara ditarik ke
+  // bawah membuat panelnya ikut jari.
+  const pegangan = h('button.pegangan', { type: 'button', 'aria-label': 'Tutup' }, h('i'));
+  const judulSheet = h('div.judul-sheet', h('h2', judul));
   const badan = h('div.sheet', { role: 'dialog', 'aria-modal': 'true' },
-    h('div.pegangan'),
-    h('div.judul-sheet',
-      h('h2', judul),
-      h('button.tutup', { 'aria-label': 'Tutup', onclick: () => tutup() }, '×')
-    ),
-    gulir, kaki
+    pegangan, judulSheet, gulir, kaki
   );
   const tirai = h('div.tirai', { onclick: (e) => { if (e.target === tirai) tutup(); } }, badan);
 
@@ -142,6 +145,83 @@ export function sheet(judul, isi, opsi = {}) {
     opsi.onTutup?.();
   }
   function padaTombol(e) { if (e.key === 'Escape') tutup(); }
+
+  // --- seret untuk menutup ---------------------------------------------------
+  // Ambangnya dua: jarak (seperempat tinggi panel) atau laju. Yang kedua perlu
+  // supaya sentakan pendek tapi cepat tetap menutup — tanpa itu panel tinggi
+  // terasa berat, karena seperempatnya saja sudah ratusan piksel.
+  const AMBANG_JARAK = 0.25;
+  const AMBANG_LAJU = 0.45;   // piksel per milidetik
+
+  let mulaiY = 0, mulaiWaktu = 0, geser = 0, menyeret = false, pernahGeser = false;
+
+  function padaTurun(e) {
+    if (e.button) return;
+    menyeret = true;
+    pernahGeser = false;
+    mulaiY = e.clientY;
+    mulaiWaktu = performance.now();
+    geser = 0;
+    // Animasi masuk dimatikan dulu: kalau masih berjalan, ia menimpa transform
+    // yang kita setel di sini dan panelnya terlihat melompat.
+    badan.style.animation = 'none';
+    badan.style.transition = 'none';
+    // Penangkapan penunjuk supaya jari yang keluar dari garis tetap terlacak.
+    // Dibungkus: kalau pointerId-nya tidak dikenal peramban, seretnya harus
+    // tetap jalan, bukan melempar dari dalam handler.
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* abaikan */ }
+  }
+
+  function padaGerak(e) {
+    if (!menyeret) return;
+    const jarak = e.clientY - mulaiY;
+    if (Math.abs(jarak) > 3) { pernahGeser = true; pegangan.classList.add('seret'); }
+    // Tarikan ke atas dilawan, tidak ditolak mentah-mentah: panel tetap sedikit
+    // bergerak supaya terasa hidup, tapi tidak lepas dari tepi layar.
+    geser = jarak > 0 ? jarak : jarak / 5;
+    badan.style.transform = `translateY(${geser}px)`;
+    const tinggi = badan.offsetHeight || 1;
+    tirai.style.opacity = String(Math.max(0.15, 1 - Math.max(0, geser) / tinggi));
+  }
+
+  function padaAngkat() {
+    if (!menyeret) return;
+    menyeret = false;
+    pegangan.classList.remove('seret');
+    const laju = geser / Math.max(1, performance.now() - mulaiWaktu);
+    if (geser > badan.offsetHeight * AMBANG_JARAK || laju > AMBANG_LAJU) {
+      tutupSeret();
+      return;
+    }
+    badan.style.transition = 'transform 0.26s cubic-bezier(0.32, 0.72, 0, 1)';
+    badan.style.transform = '';
+    tirai.style.opacity = '';
+  }
+
+  /** Menutup dari posisi jari sekarang, bukan dilompatkan balik ke atas dulu
+   *  seperti animasi `turun` biasa. */
+  function tutupSeret() {
+    if (sedangTutup) return;
+    sedangTutup = true;
+    document.removeEventListener('keydown', padaTombol);
+    badan.style.transition = 'transform 0.22s cubic-bezier(0.32, 0.72, 0, 1)';
+    badan.style.transform = `translateY(${badan.offsetHeight + 40}px)`;
+    tirai.style.transition = 'opacity 0.2s ease';
+    tirai.style.opacity = '0';
+    setTimeout(selesai, 240);
+  }
+
+  // Kepala sheet ikut jadi daerah seret, supaya jempol tidak harus tepat
+  // mengenai garis setipis 4px itu.
+  for (const el of [pegangan, judulSheet]) {
+    el.addEventListener('pointerdown', padaTurun);
+    el.addEventListener('pointermove', padaGerak);
+    el.addEventListener('pointerup', padaAngkat);
+    el.addEventListener('pointercancel', padaAngkat);
+  }
+  // Tekan = tutup. Seretan yang berakhir di tempat semula tidak dihitung
+  // sebagai tekanan — kalau tidak, tarikan yang batal malah menutup panel.
+  pegangan.addEventListener('click', () => { if (!pernahGeser) tutup(); });
 
   document.addEventListener('keydown', padaTombol);
   gulir.appendChild(isi instanceof Function ? isi(tutup, badan) : isi);

@@ -17,7 +17,8 @@ var TAB = {
   SAVING: 'Saving',
   PERANGKAT: 'Perangkat',
   PENGATURAN: 'Pengaturan',
-  RINGKASAN: 'Ringkasan'
+  RINGKASAN: 'Ringkasan',
+  BELANJA: 'Belanja'
 };
 
 var HEADER = {
@@ -31,7 +32,11 @@ var HEADER = {
   Perangkat: ['id', 'endpoint', 'p256dh', 'auth', 'label', 'terdaftar'],
   Pengaturan: ['kunci', 'nilai'],
   Ringkasan: ['bulan', 'pemasukan', 'tetap', 'rumah_tangga', 'sisa',
-              'basis_penghasilan', 'perpuluhan', 'saving', 'entertain', 'jumlah_transaksi']
+              'basis_penghasilan', 'perpuluhan', 'saving', 'entertain', 'jumlah_transaksi'],
+  // Satu baris per barang, selamanya. Mencentang tidak menghapus barisnya —
+  // hanya mengubah status dan mencap tanggalnya, supaya "kapan terakhir beli
+  // telur" masih bisa dijawab setahun kemudian.
+  Belanja: ['id', 'nama', 'status', 'terakhir_beli', 'kali', 'dibuat', 'diubah']
 };
 
 var JENIS = { PEMASUKAN: 'PEMASUKAN', TETAP: 'TETAP', RUMAH_TANGGA: 'RUMAH_TANGGA' };
@@ -380,6 +385,7 @@ function doPost(e) {
       case 'kategori.simpan':   return jawab_({ ok: true, data: simpanKategori_(data) });
       case 'kategori.sisihkan': return jawab_({ ok: true, data: sisihkanKategori_(data) });
       case 'kategori.pulihkan': return jawab_({ ok: true, data: pulihkanKategori_(data) });
+      case 'belanja.simpan':    return jawab_({ ok: true, data: simpanBelanja_(data) });
       case 'saving.simpan':     return jawab_({ ok: true, data: simpanSaving_(data) });
       case 'saving.hapus':      return jawab_({ ok: true, data: hapusSaving_(data) });
       case 'perangkat.daftar':  return jawab_({ ok: true, data: daftarkanPerangkat_(data) });
@@ -446,6 +452,10 @@ function muatAwal_(data) {
           kredit: angka_(s.kredit), saldo: angka_(s.saldo), keterangan: String(s.keterangan || '')
         };
       }),
+    // Daftar belanja tidak terikat bulan, jadi dikirim utuh — termasuk barang
+    // yang sudah dibeli maupun disisihkan. Aplikasi yang memilah statusnya,
+    // supaya "terakhir beli" tetap bisa dilihat dari HP saat sinyal mati.
+    belanja: baca_(TAB.BELANJA).map(bentukBelanja_),
     profil: profilPublik_(pengaturan_()),
     waktuServer: sekarang_()
   };
@@ -481,6 +491,18 @@ function bentukRutin_(r) {
     totalTermin: angka_(r.total_termin),
     terminTerbayar: angka_(r.termin_terbayar),
     aktif: String(r.aktif) !== 'false' && r.aktif !== false
+  };
+}
+
+function bentukBelanja_(b) {
+  return {
+    id: String(b.id),
+    nama: String(b.nama || ''),
+    status: String(b.status || 'aktif'),
+    // Lewat keTanggal_ karena Sheets mengubah teks '2026-09-05' jadi objek Date
+    // begitu ditulis ke sel; dibaca apa adanya, perbandingannya akan meleset.
+    terakhir: keTanggal_(b.terakhir_beli),
+    kali: angka_(b.kali)
   };
 }
 
@@ -878,6 +900,51 @@ function simpanAnggaran_(data) {
   }
 }
 
+// ------------------------------------------------------------------ belanja --
+
+/**
+ * Simpan satu atau banyak barang belanja. Satu aksi untuk semuanya — menambah,
+ * mencentang, mengembalikan ke daftar, menyisihkan — karena semuanya cuma beda
+ * isi rekaman, bukan beda perlakuan.
+ *
+ * Seluruh rekaman ditulis apa adanya, termasuk `kali` sebagai angka mutlak yang
+ * sudah dihitung aplikasi. Sengaja bukan perintah "tambah satu": antrian luring
+ * bisa mengirim ulang aksi yang sama, dan penambahan akan menggandakan diri
+ * sedangkan penimpaan tidak.
+ */
+function simpanBelanja_(data) {
+  var masuk = data.daftar || [data];
+  var kunci = LockService.getScriptLock();
+  kunci.waitLock(25000);
+  try {
+    var ada = {};
+    baca_(TAB.BELANJA).forEach(function (b) { ada[String(b.id)] = b; });
+    var baru = [];
+    var hasil = [];
+    masuk.forEach(function (m) {
+      var id = String(m.id || idBaru_('blj'));
+      var nama = String(m.nama || '').trim();
+      if (!nama) throw new Error('Nama barang tidak boleh kosong.');
+      var isi = {
+        id: id,
+        nama: nama,
+        status: String(m.status || 'aktif'),
+        terakhir_beli: keTanggal_(m.terakhir) || '',
+        kali: angka_(m.kali),
+        dibuat: ada[id] ? ada[id].dibuat : sekarang_(),
+        diubah: sekarang_()
+      };
+      if (ada[id]) perbaruiBaris_(TAB.BELANJA, ada[id]._baris, isi);
+      else baru.push(isi);
+      hasil.push(bentukBelanja_(isi));
+    });
+    tulisBanyak_(TAB.BELANJA, baru);
+    return { tersimpan: hasil };
+  } finally {
+    kunci.releaseLock();
+  }
+}
+
 // -------------------------------------------------------------------- saving --
 
 function simpanSaving_(data) {
@@ -1026,4 +1093,5 @@ function formatTabTransaksi_() {
   tab_(TAB.RUTIN).getRange('I:I').setNumberFormat('@');
   tab_(TAB.RUTIN).getRange('F:F').setNumberFormat('#,##0');
   tab_(TAB.KATEGORI).getRange('C:C').setNumberFormat('@');
+  tab_(TAB.BELANJA).getRange('D:D').setNumberFormat('yyyy-mm-dd');
 }

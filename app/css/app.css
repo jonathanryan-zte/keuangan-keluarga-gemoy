@@ -31,6 +31,24 @@
 }
 .tombol-kepala.aktif { color: #fff; background: linear-gradient(135deg, var(--tosca-terang), var(--tosca)); border-color: transparent; }
 
+/* Sejak Belanja ikut jadi ikon kepala, tiga ikon + lencana sinkron menghabiskan
+   ruang judul di layar sempit: di 320px judulnya tinggal 60px dan hilang sama
+   sekali begitu lencana "Luring" muncul. Ikon dan jarak dikecilkan sedikit
+   supaya nama layar tetap terbaca — dan nama itu penting justru untuk Belanja,
+   Laporan, dan Pengaturan, yang tidak punya label di bilah bawah. */
+@media (max-width: 400px) {
+  .kepala { gap: 8px; }
+  .kepala .kanan { gap: 4px; }
+  .kepala .judul { font-size: 17px; }
+  .tombol-kepala { width: 34px; height: 34px; }
+  /* Logonya ikut disingkirkan di sini. Keadaan tersempit bukan yang biasa,
+     tapi yang paling penting: luring sambil ada catatan mengantre — dua
+     lencana sekaligus. Di situ logo memakan 42px terakhir dan nama layarnya
+     habis sama sekali. Aplikasinya sudah dikenali dari ikon di layar utama;
+     nama layar tidak punya pengganti. */
+  .kepala .merek img { display: none; }
+}
+
 /* Pemilih bulan dapat barisnya sendiri di HP: kalau digandeng dengan judul,
    labelnya terjepit dan tombol panahnya jadi susah dikenai jempol. */
 .baris-bulan { display: flex; align-items: center; gap: 8px; padding-bottom: 12px; }
@@ -307,12 +325,30 @@ body.kunci-gulir { position: fixed; left: 0; right: 0; overflow: hidden; }
   background-image: radial-gradient(130% 65% at 50% -12%, rgba(245,158,11,0.3), transparent 62%), var(--latar);
   box-shadow: inset 0 0 110px -25px rgba(245,158,11,0.7);
 }
+/* Satu-satunya kendali di kepala sheet. Sasaran sentuhnya sengaja jauh lebih
+   besar dari garis yang terlihat — garis setebal 4px terlalu tipis untuk
+   jempol, baik untuk ditekan maupun untuk mulai menarik. */
 .sheet .pegangan {
-  width: 38px; height: 4px; border-radius: 999px; background: var(--tinta-samar);
-  opacity: 0.4; margin: 6px auto 12px;
+  flex: none; align-self: center; width: 96px; padding: 8px 0 12px;
+  touch-action: none; cursor: grab;
 }
-.sheet .judul-sheet { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.sheet .judul-sheet .tutup { margin-left: auto; color: var(--tinta-samar); font-size: 22px; line-height: 1; }
+.sheet .pegangan:active, .sheet .pegangan.seret { cursor: grabbing; }
+.sheet .pegangan i {
+  display: block; width: 38px; height: 4px; margin: 0 auto;
+  border-radius: 999px; background: var(--tinta-samar); opacity: 0.4;
+  transition: width 0.18s ease, opacity 0.18s ease;
+}
+.sheet .pegangan:hover i { opacity: 0.62; }
+/* Garisnya memanjang selagi ditarik — isyarat bahwa panelnya memang sedang
+   dipegang, bukan sekadar tergeser. */
+.sheet .pegangan.seret i { width: 54px; opacity: 0.8; }
+
+.sheet .judul-sheet {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+  /* Kepala sheet ikut jadi daerah seret. touch-action:none supaya peramban
+     tidak menafsirkannya sebagai gulir halaman atau tarik-untuk-muat-ulang. */
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
 
 /* ------------------------------------------------------------------ isian */
 

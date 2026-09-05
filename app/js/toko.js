@@ -29,6 +29,7 @@ export const st = {
   rutin: [],
   anggaran: [],
   saving: [],
+  belanja: [],
   bulan: bulanIni(),
   layar: 'beranda',
   antri: 0,
@@ -45,6 +46,7 @@ export function muatCache() {
   Object.assign(st, {
     transaksi: c.transaksi || [], rutin: c.rutin || [],
     anggaran: c.anggaran || [], saving: c.saving || [],
+    belanja: c.belanja || [],
     profil: c.profil || st.profil
   });
   return true;
@@ -53,7 +55,8 @@ export function muatCache() {
 export function simpanCache() {
   lokal.simpan('cache', {
     transaksi: st.transaksi, rutin: st.rutin,
-    anggaran: st.anggaran, saving: st.saving, profil: st.profil
+    anggaran: st.anggaran, saving: st.saving, belanja: st.belanja,
+    profil: st.profil
   });
 }
 
@@ -62,6 +65,7 @@ export function terapkanMuatan(d) {
   st.rutin = d.rutin || [];
   st.anggaran = d.anggaran || [];
   st.saving = d.saving || [];
+  st.belanja = d.belanja || [];
   if (d.profil) {
     st.profil = {
       ...st.profil, ...d.profil,
@@ -362,6 +366,60 @@ export function jatuhTempoDekat(hari = 7) {
 export function saldoSaving() {
   if (!st.saving.length) return 0;
   return st.saving[st.saving.length - 1].saldo || 0;
+}
+
+// ------------------------------------------------------------------ belanja --
+//
+// Satu barang = satu baris, selamanya. Mencentang tidak membuang barisnya,
+// hanya memindahkannya ke status 'simpan' dan mencap tanggalnya — jadi daftar
+// bersih setiap kali, tapi pertanyaan "kapan terakhir beli beras" tetap bisa
+// dijawab. Yang tidak mau disarankan lagi diberi status 'arsip', bukan dihapus.
+
+export function idBelanja() {
+  return `blj-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Sisipkan/ganti satu barang di memori supaya layar langsung berubah. */
+export function taruhBelanja(b) {
+  const i = st.belanja.findIndex((x) => x.id === b.id);
+  if (i >= 0) st.belanja[i] = b; else st.belanja.push(b);
+  simpanCache();
+}
+
+function statusBelanja(b) {
+  return String(b.status || 'aktif');
+}
+
+/** Yang sedang ada di daftar belanja — belum dicentang. */
+export function belanjaAktif() {
+  return st.belanja.filter((b) => statusBelanja(b) === 'aktif')
+    .sort((a, b) => a.nama.localeCompare(b.nama, 'id'));
+}
+
+/**
+ * Barang yang pernah dibeli dan sedang tidak di daftar. Diurutkan dari yang
+ * paling lama tidak dibeli — barang yang kemungkinan besar sudah habis naik
+ * sendiri ke atas, dan itulah gunanya menyimpan tanggalnya.
+ */
+export function belanjaDiingat() {
+  return st.belanja.filter((b) => statusBelanja(b) === 'simpan')
+    .sort((a, b) => (a.terakhir || '').localeCompare(b.terakhir || '') ||
+                    a.nama.localeCompare(b.nama, 'id'));
+}
+
+export function belanjaDisisihkan() {
+  return st.belanja.filter((b) => statusBelanja(b) === 'arsip')
+    .sort((a, b) => a.nama.localeCompare(b.nama, 'id'));
+}
+
+/**
+ * Cari barang dengan nama yang sama tanpa peduli huruf besar-kecil, supaya
+ * "telur" tidak jadi barang kedua di sebelah "Telur" — kalau itu terjadi,
+ * catatan "terakhir beli"-nya pecah dua dan fiturnya kehilangan gunanya.
+ */
+export function cariBelanja(nama) {
+  const k = String(nama || '').trim().toLowerCase();
+  return st.belanja.find((b) => b.nama.trim().toLowerCase() === k) || null;
 }
 
 /** Item yang paling sering dipakai, untuk saran di form input. */

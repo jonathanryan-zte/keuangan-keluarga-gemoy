@@ -28,14 +28,21 @@ boleh dilewati dulu dan dikerjakan kapan saja nanti — bagian lain tetap jalan.
    Advanced → Go to (nama proyek) → Allow*. Ini wajar — skripnya memang perlu izin
    menulis ke Sheet Anda sendiri.
 
-   Setelah selesai akan muncul delapan tab baru: `Transaksi`, `Rutin`, `Anggaran`,
-   `Kategori`, `Saving`, `Perangkat`, `Pengaturan`, `Ringkasan`. Tab lama Anda
-   tidak disentuh.
+   Setelah selesai akan muncul sembilan tab baru: `Transaksi`, `Rutin`, `Anggaran`,
+   `Kategori`, `Saving`, `Perangkat`, `Pengaturan`, `Ringkasan`, `Belanja`. Tab
+   lama Anda tidak disentuh.
 
    > **Kalau Sheet Anda sudah dipasang sebelum tab `Kategori` ada:** jalankan
    > `siapkanSheet` sekali lagi. Tab `Kategori` akan dibuat dan diisi daftar
    > bawaan, dan tab `Anggaran` mendapat dua kolom baru (`status`, `diubah`)
    > tanpa mengubah pagu yang sudah ada.
+
+   > **Kalau Sheet Anda dipasang sebelum ada Daftar Belanja:** jalankan
+   > `siapkanSheet` sekali lagi, lalu **Deploy ulang sebagai New version**
+   > (langkah 4 di bawah). Tab `Belanja` akan dibuat kosong. Tanpa Deploy ulang,
+   > aplikasi memanggil kode lama dan layar Belanja menjawab
+   > "Aksi tidak dikenal: belanja.simpan" — daftarnya tetap bisa dipakai di HP,
+   > tapi tidak pernah sampai ke Sheet.
 
 5. Tetapkan PIN keluarga. **Jangan menjalankan `setPin` langsung dari tombol
    Run** — fungsi itu butuh argumen, sedangkan tombol Run memanggilnya tanpa

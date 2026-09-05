@@ -83,6 +83,29 @@ export function tanggalPanjang(iso) {
   return `${HARI_NAMA[d.getDay()]}, ${d.getDate()} ${BULAN_NAMA[d.getMonth()]}`;
 }
 
+/**
+ * Jarak waktu yang enak dibaca sekilas: "5 hari lalu", bukan "Sab, 30 Agustus".
+ * Dipakai daftar belanja, di mana yang ingin diketahui bukan tanggalnya
+ * melainkan sudah berapa lama — itu yang menentukan barangnya sudah habis
+ * atau belum. Pembulatan sengaja kasar; ketelitian hari tidak menambah arti
+ * begitu lewat sebulan.
+ */
+export function berapaLama(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return iso;
+  const kini = new Date(hariIni() + 'T00:00:00');
+  const hari = Math.round((kini - d) / 86400000);
+  if (hari < 0) return tanggalPanjang(iso);
+  if (hari === 0) return 'hari ini';
+  if (hari === 1) return 'kemarin';
+  if (hari < 14) return `${hari} hari lalu`;
+  if (hari < 60) return `${Math.round(hari / 7)} minggu lalu`;
+  if (hari < 365) return `${Math.round(hari / 30)} bulan lalu`;
+  const tahun = Math.floor(hari / 365);
+  return tahun === 1 ? 'setahun lalu' : `${tahun} tahun lalu`;
+}
+
 export function hariIni() {
   const d = new Date();
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;

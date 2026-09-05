@@ -17,14 +17,19 @@ const JENIS = [
 
 const KUNCI_MODE = 'mode_tambah';
 
-/** @param {object|null} awal Transaksi yang mau diubah, atau null untuk baru. */
-export function bukaTambah(awal = null) {
+/**
+ * @param {object|null} awal Transaksi yang mau diubah, atau null untuk baru.
+ * @param {{mode?: string, baris?: Array}} opsi Pembuka dari layar lain. Daftar
+ *   Belanja memakainya untuk membuka mode banyak dengan barang yang tadi
+ *   dicentang sudah terisi sebagai baris — tinggal isi harganya.
+ */
+export function bukaTambah(awal = null, opsi = {}) {
   const f = {
     id: awal?.id || null,
     // Mengubah satu catatan tidak punya mode borongan — sakelarnya hanya
     // muncul saat mencatat baru.
-    mode: awal ? 'satu' : lokal.ambil(KUNCI_MODE, 'satu'),
-    baris: null,
+    mode: awal ? 'satu' : (opsi.mode || lokal.ambil(KUNCI_MODE, 'satu')),
+    baris: opsi.baris || null,
     jenis: awal?.jenis || 'RUMAH_TANGGA',
     nominal: awal?.nominal || 0,
     item: awal?.item || '',

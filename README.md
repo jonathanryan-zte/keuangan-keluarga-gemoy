@@ -64,6 +64,17 @@ seperti di HP.
   transaksi lamanya utuh, pagu bulan-bulan lalu tetap tersimpan, dan tombol
   "Pakai lagi" selalu tersedia. Transaksi dan mutasi saving pun dihapus lunak
   dengan cara yang sama.
+- **Mencentang daftar belanja tidak mencatat uang.** Daftar Belanja adalah alat
+  bantu di toko, bukan pembukuan: uang keluar sekali di kasir, bukan per barang.
+  Mencentang hanya memindahkan barangnya ke "pernah dibeli" dan mencap
+  tanggalnya. Untuk uangnya ada tombol "Catat belanjanya" yang membuka form
+  catat-banyak dengan nama barangnya sudah terisi — satu struk jadi satu
+  rangkaian catatan, tanpa angka yang dihitung dua kali.
+- **Barang belanja pun tidak pernah dihapus.** Satu barang satu baris di tab
+  `Belanja`, selamanya, lengkap dengan tanggal beli terakhir dan sudah berapa
+  kali dibeli. Itulah yang membuat daftar minggu berikutnya bisa dibuat dengan
+  mengetuk, bukan mengetik: sarannya diurutkan dari yang paling lama tidak
+  dibeli. Yang tidak ingin disarankan lagi diberi status `arsip`, bukan dibuang.
 - **Daftar kategori punya satu sumber**, yaitu tab `Kategori` di Sheet. Layar
   Anggaran yang mengubahnya, dan perubahan itu langsung terasa di form catat,
   saringan Riwayat, tagihan rutin, dan pengingat pagi.

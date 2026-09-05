@@ -1,5 +1,5 @@
 // Service worker: cangkang luring + penerima notifikasi push.
-const CACHE = 'kkg-v2';
+const CACHE = 'kkg-v3';
 const CANGKANG = [
   './', './index.html', './manifest.webmanifest',
   './css/tema.css', './css/app.css',
@@ -7,7 +7,8 @@ const CANGKANG = [
   './js/simpanan.js', './js/api.js', './js/toko.js', './js/grafik.js',
   './js/layar/beranda.js', './js/layar/tambah.js', './js/layar/tambah-banyak.js',
   './js/layar/riwayat.js',
-  './js/layar/anggaran.js', './js/layar/rutin.js', './js/layar/laporan.js',
+  './js/layar/anggaran.js', './js/layar/rutin.js', './js/layar/belanja.js',
+  './js/layar/laporan.js',
   './js/layar/pengaturan.js',
   './ikon/kkg.svg', './ikon/kkg-maskable.svg'
 ];
