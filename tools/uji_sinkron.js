@@ -28,11 +28,11 @@ const ctx = {
   Date
 };
 vm.createContext(ctx);
-for (const f of ['Kode.gs', 'Migrasi.gs', 'Sinkron.gs']) {
+for (const f of ['Kode.gs', 'Ringkasan.gs', 'Migrasi.gs', 'Sinkron.gs', 'Selisih.gs']) {
   vm.runInContext(fs.readFileSync(akar + f, 'utf8'), ctx, { filename: f });
 }
 
-const { idMigrasi_, rencanaTransaksi_, rencanaSaving_, idSaving_, JENIS } = ctx;
+const { idMigrasi_, rencanaTransaksi_, rencanaSaving_, idSaving_, hitungSatuBulan_, JENIS } = ctx;
 
 // --- pembentuk data -------------------------------------------------------
 // Meniru bentuk yang dikeluarkan bacaSemuaTabLama_ untuk satu bulan.
@@ -158,6 +158,59 @@ cek('saving sudah ada -> diam',
 cek('saving id lama -> dirapikan',
   rencanaSaving_(svg, svg.map((s, i) => ({ ...s, _baris: i + 2, id: 'migsvg-' + (i + 1) })))
     .dirapikan.length, 2);
+
+// --- rekonsiliasi selisih Sisa ---------------------------------------------
+// Laporan yang angkanya tidak menutup lebih menyesatkan daripada tidak ada
+// laporan sama sekali, jadi yang diuji di sini justru penutupannya.
+function bulan(sheet, app, belum) {
+  return hitungSatuBulan_('2026-09', sheet, app, belum);
+}
+function tutup(b) {
+  // sisa aplikasi dikurangi seluruh sebab harus persis sisa di sheet lama
+  return Math.round(b.sisaApp -
+    (b.belumTertarik + b.hanyaApp + b.diubahDiApp + b.jumlahTurunan + b.belumJelas));
+}
+const nolApp = { PEMASUKAN: 0, TETAP: 0, RUMAH_TANGGA: 0, jumlah: 0 };
+
+// a. Persis keluhan Ryan: 12 baris belanja di tab lama belum tertarik.
+const a = bulan(
+  { pemasukan: 30000000, tetap: 6000000, rumah_tangga: 6857232,
+    turunan: { sisa: 17142768 } },
+  { pemasukan: 30000000, tetap: 6000000, rumah_tangga: 3592276, hanyaApp: nolApp },
+  { PEMASUKAN: 0, TETAP: 0, RUMAH_TANGGA: 3264956, jumlah: 12 });
+cek('belum sinkron: selisih terurai penuh',
+  { selisih: a.selisih, belum: a.belumTertarik, turunan: a.jumlahTurunan, sisa: a.belumJelas },
+  { selisih: 3264956, belum: 3264956, turunan: 0, sisa: 0 });
+cek('belum sinkron: angkanya menutup', tutup(a), 17142768);
+
+// b. Data sudah sama, yang beda cuma rumus Sisa-nya.
+const b = bulan(
+  { pemasukan: 30000000, tetap: 6000000, rumah_tangga: 6857232,
+    turunan: { sisa: 5142768, perpuluhan: 2000000, saving: 6000000, entertain: 4000000 } },
+  { pemasukan: 30000000, tetap: 6000000, rumah_tangga: 6857232, hanyaApp: nolApp },
+  null);
+cek('beda rumus: bukan soal data',
+  { data: Math.round(b.bedaData), turunan: b.jumlahTurunan, sisa: Math.round(b.belumJelas) },
+  { data: 0, turunan: 12000000, sisa: 0 });
+cek('beda rumus: angkanya menutup', tutup(b), 5142768);
+
+// c. Campuran, ditambah rumus total sheet lama yang memang tidak konsisten.
+const c = bulan(
+  { pemasukan: 30000000, tetap: 6000000, rumah_tangga: 6857232,
+    turunan: { sisa: 4642768, perpuluhan: 2000000, saving: 6000000, entertain: 4000000 } },
+  { pemasukan: 30000000, tetap: 6000000, rumah_tangga: 3592276,
+    hanyaApp: { PEMASUKAN: 0, TETAP: 0, RUMAH_TANGGA: 150000, jumlah: 2 } },
+  { PEMASUKAN: 0, TETAP: 0, RUMAH_TANGGA: 3414956, jumlah: 13 });
+cek('campuran: tiap sebab terpisah',
+  { belum: c.belumTertarik, app: c.hanyaApp, turunan: c.jumlahTurunan,
+    sisa: Math.round(c.belumJelas) },
+  { belum: 3414956, app: -150000, turunan: 12000000, sisa: 500000 });
+cek('campuran: angkanya menutup', tutup(c), 4642768);
+
+// d. Bulan yang di sheet lama tidak punya baris "Sisa" sama sekali.
+const d = bulan({ pemasukan: 100, tetap: 0, rumah_tangga: 0, turunan: {} },
+                { pemasukan: 100, tetap: 0, rumah_tangga: 0, hanyaApp: nolApp }, null);
+cek('tanpa baris Sisa di sheet lama -> ditandai, bukan dibandingkan', d.adaSisaLama, false);
 
 console.log(gagal ? `\n${gagal} uji gagal` : '\nSemua uji lolos');
 process.exit(gagal ? 1 : 0);

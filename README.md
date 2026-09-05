@@ -47,7 +47,7 @@ seperti di HP.
 | Perintah / berkas | Gunanya |
 |---|---|
 | `python3 tools/cek_migrasi.py <berkas.xlsx>` | Menguji algoritma migrasi terhadap salinan Sheet (.xlsx) tanpa menyentuh data asli. Cerminan Python dari `apps-script/Migrasi.gs` — kalau salah satunya diubah, ubah keduanya. |
-| `node tools/uji_sinkron.js` | Menjalankan otak pencocokan `apps-script/Sinkron.gs` di Node dengan Apps Script yang dipalsukan. Jalankan setiap kali aturan pencocokannya disentuh. |
+| `node tools/uji_sinkron.js` | Menjalankan otak pencocokan `apps-script/Sinkron.gs` dan rekonsiliasi `apps-script/Selisih.gs` di Node dengan Apps Script yang dipalsukan. Jalankan setiap kali salah satunya disentuh. |
 | `tools/uji_push.html` | Uji bolak-balik enkripsi Web Push (RFC 8291) dan tanda tangan VAPID. Butuh server lokal karena memakai modul ES. |
 | `tools/buat_kunci_vapid.html` | Membuat pasangan kunci VAPID untuk notifikasi. Bisa dibuka langsung tanpa server. |
 | `python3 tools/buat_logo.py` | Menggambar ulang logo KKG dari koordinat terhitung. |
@@ -87,6 +87,13 @@ seperti di HP.
   tab lama cuma diberi catatan — tidak dihapus. Tebakan yang tidak cukup yakin
   tidak dikerjakan diam-diam, tapi dituliskan ke tab `Sinkron Cek` supaya
   diputuskan manusia.
+- **"Sisa" tidak berarti sama di dua tempat, dan itu dijelaskan, bukan
+  didiamkan.** Di aplikasi, Sisa = pemasukan − tetap − rumah tangga; Perpuluhan
+  / Saving / Entertain adalah angka tersendiri, bukan pengurang. Rumus di sheet
+  lama tidak selalu begitu. `Selisih.gs` menguraikan bedanya sampai nol dan
+  memisahkan sebab yang akan hilang setelah sinkron dari sebab yang memang
+  tidak seharusnya hilang — termasuk menuliskan sisa yang belum terjelaskan
+  apa adanya, alih-alih membulatkannya hilang.
 - **Tema mengikuti HP**, tanpa tombol ganti tema.
 - **Efek kaca dimatikan otomatis** kalau pengguna menyalakan pengurangan
   transparansi di pengaturan aksesibilitas.

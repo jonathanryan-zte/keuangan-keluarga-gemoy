@@ -299,7 +299,11 @@ function bacaSemuaTabLama_() {
       var ringkas = {
         tab: nama, bulan: blok.bulan, namaBulan: blok.namaBulan,
         pemasukan: 0, tetap: 0, rumah_tangga: 0, jumlah: 0,
-        dilewati: [], cicilan: [], tanpaTanggal: 0
+        dilewati: [], cicilan: [], tanpaTanggal: 0,
+        // Nilai baris turunan ('Sisa', 'Perpuluhan', 'Saving', 'Entertain', ...)
+        // dalam bentuk angka, bukan teks. Dipakai Selisih.gs untuk menjelaskan
+        // kenapa Sisa di aplikasi tidak sama dengan Sisa di sheet lama.
+        turunan: {}
       };
       // Berapa kali isi baris yang persis sama sudah muncul di bulan ini.
       // Dipakai idMigrasi_ supaya dua "Bensin 100.000" di bulan yang sama
@@ -339,6 +343,7 @@ function bacaSemuaTabLama_() {
           if (LABEL_DILEWATI.indexOf(rendah) >= 0) {
             if (nominal) {
               ringkas.dilewati.push(itemMentah + ' = ' + Math.round(angka_(nominal)));
+              ringkas.turunan[rendah] = (ringkas.turunan[rendah] || 0) + angka_(nominal);
             }
             continue;
           }

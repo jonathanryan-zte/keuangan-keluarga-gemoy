@@ -1085,6 +1085,8 @@ function onOpen() {
     .addItem('Tarik data dari sheet lama', 'jalankanSinkron')
     .addItem('Lihat dulu apa yang akan berubah', 'periksaSinkron')
     .addSeparator()
+    .addItem('Kenapa Sisa beda dengan sheet lama?', 'periksaSelisih')
+    .addSeparator()
     .addItem('Segarkan Ringkasan', 'segarkanRingkasan')
     .addToUi();
 }

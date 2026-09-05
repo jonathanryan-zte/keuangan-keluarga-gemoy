@@ -21,6 +21,7 @@ boleh dilewati dulu dan dikerjakan kapan saja nanti — bagian lain tetap jalan.
    | `Rutin`     | `apps-script/Rutin.gs` |
    | `Migrasi`   | `apps-script/Migrasi.gs` |
    | `Sinkron`   | `apps-script/Sinkron.gs` |
+   | `Selisih`   | `apps-script/Selisih.gs` |
    | `Pengingat` | `apps-script/Pengingat.gs` |
 
 3. Simpan (Ctrl/Cmd + S).
@@ -136,6 +137,27 @@ Setelah Sheet dibuka ulang, ada menu **KKG** di sebelah menu Bantuan berisi dua
 langkah yang sama — supaya bisa dijalankan tanpa membuka editor Apps Script.
 Dari HP, tombolnya ada di **Pengaturan → Data dari sheet lama**.
 
+### Kalau angka "Sisa" di aplikasi tidak sama dengan di sheet lama
+
+Jalankan **`periksaSelisih`** (atau menu **KKG → Kenapa Sisa beda dengan sheet
+lama?**). Ia tidak mengubah apa pun; ia menulis tangga rekonsiliasi ke tab
+**`Selisih Cek`**, satu bulan satu blok, dan menutup selisihnya sampai nol.
+
+Selisihnya selalu campuran dua hal yang sifatnya berbeda:
+
+- **Bedanya data** — ada baris di `Monthly 26` yang belum tertarik, atau catatan
+  yang hanya ada di aplikasi. Ini hilang sendiri setelah sinkron dijalankan.
+- **Bedanya rumus** — "Sisa" di aplikasi berarti `pemasukan − tetap − rumah
+  tangga`, dan Perpuluhan / Saving / Entertain ditampilkan sebagai angka
+  tersendiri di kartu "Aturan 10 / 30 / 20". Kalau rumus `Sisa` di sheet lama
+  sudah ikut mengurangkan ketiganya, angkanya memang tidak akan pernah sama —
+  dan tidak seharusnya sama. Ini **tidak** hilang dengan sinkron.
+
+Baris terakhir tiap bulan bernama **"Belum terjelaskan"**. Kalau isinya nol,
+seluruh selisihnya sudah terurai. Kalau tidak nol, kemungkinan besar rumus total
+di sheet lama untuk bulan itu memang tidak konsisten — hal yang sudah tercatat
+di langkah 2 di atas.
+
 > **Yang tidak akan pernah dilakukan sinkron:** menimpa apa yang sudah Anda
 > betulkan. Kategori, sifat WAJIB/KEINGINAN, dan tanggal yang Anda perbaiki
 > lewat aplikasi tetap seperti itu walaupun tebakan mesinnya sekarang berbeda.
@@ -246,6 +268,7 @@ tidak bisa dilakukan Apps Script.
 | Menekan Run tapi yang jalan fungsi lain | Pemilih fungsi di toolbar kadang cuma berubah tulisannya tanpa benar-benar ganti pilihan. Cara paling aman: klik dulu berkas yang memuat fungsinya di panel Files, lalu **cek riwayat di menu Executions** (ikon jam di kiri) untuk memastikan nama fungsi yang benar-benar dijalankan — jangan cuma percaya tulisan "Execution completed" |
 | Angka aplikasi beda dengan Sheet | Jalankan `segarkanRingkasan` di Apps Script |
 | Catatan admin di `Monthly 26` tidak muncul di aplikasi | Sinkronnya belum jalan. Tekan **Pengaturan → Tarik data dari sheet lama** di HP, atau jalankan `jalankanSinkron`. Kalau ini sering terjadi, `pasangPemicuSinkron` belum pernah dijalankan |
+| Sisa di aplikasi beda dengan Sisa di Sheet | Jalankan `periksaSelisih`, lalu baca tab `Selisih Cek` — ia menguraikan selisihnya sampai nol dan memisahkan mana yang karena belum sinkron, mana yang karena rumusnya memang berbeda |
 | Ada transaksi kembar | Kemungkinan besar satu belanja dicatat dua kali: sekali lewat aplikasi, sekali di `Monthly 26`. Tab `Sinkron Cek` sudah menandainya dengan aksi `periksa sendiri` |
 | Notifikasi tidak datang di iPhone | Aplikasi belum ditambahkan ke Layar Utama, atau izin belum diberikan |
 | Catatan tertahan "tertunda" | Sedang tanpa sinyal. Akan terkirim sendiri; bisa dipaksa lewat Pengaturan → Kirim catatan tertunda |
