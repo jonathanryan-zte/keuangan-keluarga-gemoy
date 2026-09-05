@@ -26,7 +26,7 @@ export function bukaTambah(awal = null) {
     nominal: awal?.nominal || 0,
     item: awal?.item || '',
     kategori: awal?.kategori || '',
-    sifat: awal?.sifat || 'WAJIB',
+    sifat: awal?.sifat || 'KEINGINAN',
     tanggal: awal?.tanggal || hariIni(),
     catatan: awal?.catatan || ''
   };
@@ -231,8 +231,11 @@ function isiForm(f, gambar, tutupSheet) {
 
     pemasukan ? null : h('div.isian',
       h('label', 'Sifat pengeluaran'),
+      // Keinginan lebih dulu (kiri) dan jadi bawaan: catatan sehari-hari jauh
+      // lebih sering keinginan daripada wajib, jadi jempol tidak perlu pindah
+      // untuk kasus yang paling sering.
       h('div.sakelar-sifat', { role: 'radiogroup', 'aria-label': 'Sifat pengeluaran' },
-        ['WAJIB', 'KEINGINAN'].map((nilai) =>
+        ['KEINGINAN', 'WAJIB'].map((nilai) =>
           h('button', {
             type: 'button', 'data-nilai': nilai, role: 'radio',
             'aria-checked': String(f.sifat === nilai),

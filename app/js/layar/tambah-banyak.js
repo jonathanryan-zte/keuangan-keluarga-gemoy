@@ -48,7 +48,7 @@ export function formBanyak(f, gambar, tutupSheet) {
         item: p.item || p.mentah,
         nominal: p.nominal || 0,
         kategori: daftarKategori.includes(p.kategori) ? p.kategori : '',
-        sifat: 'WAJIB',
+        sifat: 'KEINGINAN',   // bawaan, sama seperti mode satuan
         tanggal: p.pastiTanggal ? p.tanggal : null   // null = ikut tanggal bersama
       });
     }
@@ -211,7 +211,8 @@ function kartuBaris(b, f, daftarKategori, pemasukan, gambar, segarkan) {
 
   const sifatMini = pemasukan ? null
     : h('div.sifat-mini', { role: 'radiogroup' },
-        ['WAJIB', 'KEINGINAN'].map((nilai) =>
+        // Urutan & bawaannya ikut mode satuan: Keinginan di kiri.
+        ['KEINGINAN', 'WAJIB'].map((nilai) =>
           h('button', {
             type: 'button', 'data-nilai': nilai, role: 'radio',
             'aria-checked': String(b.sifat === nilai),
