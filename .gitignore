@@ -6,3 +6,11 @@ worker/.wrangler/
 # Izin tool per-mesin yang ditulis Claude Code sendiri. Isinya memuat alamat
 # Apps Script lengkap dengan token deployment-nya, dan repo ini publik.
 .claude/settings.local.json
+
+# Penunjuk ke proyek Apps Script milik Sheet ini, dipakai clasp. Bukan kunci,
+# tapi ia menamai proyek pribadi Anda dan repo ini publik.
+.clasp.json
+
+# ID deployment yang dibaca tools/deploy.sh. Ini bagian dari URL /exec, yaitu
+# alamat yang melindungi data keluarga bersama PIN — jangan sampai ikut publik.
+.clasp-deployment
