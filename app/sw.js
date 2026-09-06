@@ -1,5 +1,5 @@
 // Service worker: cangkang luring + penerima notifikasi push.
-const CACHE = 'kkg-v3';
+const CACHE = 'kkg-v4';
 const CANGKANG = [
   './', './index.html', './manifest.webmanifest',
   './css/tema.css', './css/app.css',

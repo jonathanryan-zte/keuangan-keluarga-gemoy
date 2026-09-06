@@ -75,28 +75,42 @@ function susunPengingat_() {
   };
 }
 
+/**
+ * Pagu yang sudah lewat 80%, baik pagu empat pos besar maupun pagu rincian
+ * per kategori. Terpakainya dihitung dari transaksi gabungan — isian tangan di
+ * INPUT TRANSAKSI ikut, karena kalau tidak, pagu terlihat aman padahal
+ * uangnya sudah keluar.
+ */
 function hampirJebol_(bulan) {
-  var pagu = {};
+  var pagu = { kelompok: {}, kategori: {} };
   baca_(TAB.ANGGARAN).forEach(function (a) {
     // keBulan_, bukan String(): Sheets diam-diam mengubah "2026-09" jadi tanggal,
     // dan pembandingan apa adanya membuat pengingat pagu tidak pernah berbunyi.
     if (keBulan_(a.bulan) !== bulan) return;
     if (String(a.status || 'aktif') === 'arsip') return;
-    pagu[String(a.kategori)] = angka_(a.pagu);
+    var ruang = String(a.ruang || 'kategori');
+    if (!pagu[ruang]) return;
+    pagu[ruang][String(a.nama)] = angka_(a.pagu);
   });
-  var pakai = {};
-  baca_(TAB.TRANSAKSI).forEach(function (t) {
-    if (String(t.status || 'aktif') === 'dihapus') return;
-    if (String(t.jenis) !== JENIS.RUMAH_TANGGA) return;
-    if (bulanDari_(t.tanggal) !== bulan) return;
-    var k = String(t.kategori || 'Lainnya');
-    pakai[k] = (pakai[k] || 0) + angka_(t.nominal);
+
+  var pakai = { kelompok: {}, kategori: {} };
+  semuaTransaksi_().forEach(function (t) {
+    if (t.bulan !== bulan) return;
+    if (t.jenis === JENIS.PEMASUKAN || t.kelompok === KELOMPOK.NETRAL) return;
+    pakai.kelompok[t.kelompok] = (pakai.kelompok[t.kelompok] || 0) + t.nominal;
+    var k = t.kategori || 'Lainnya';
+    pakai.kategori[k] = (pakai.kategori[k] || 0) + t.nominal;
   });
-  return Object.keys(pagu).filter(function (k) {
-    return pagu[k] > 0 && (pakai[k] || 0) / pagu[k] >= 0.8;
-  }).map(function (k) {
-    return { kategori: k, persen: ((pakai[k] || 0) / pagu[k]) * 100 };
+
+  var hasil = [];
+  ['kelompok', 'kategori'].forEach(function (ruang) {
+    Object.keys(pagu[ruang]).forEach(function (nama) {
+      var p = pagu[ruang][nama];
+      var t = pakai[ruang][nama] || 0;
+      if (p > 0 && t / p >= 0.8) hasil.push({ kategori: nama, persen: (t / p) * 100 });
+    });
   });
+  return hasil;
 }
 
 function rupiah_(n) {
@@ -107,7 +121,7 @@ function rupiah_(n) {
 /** Titipkan pesan ke Worker, lalu bersihkan langganan yang sudah mati. */
 function kirimKePerangkat_(pesan) {
   var p = pengaturan_();
-  if (!p.worker_url) throw new Error('worker_url belum diisi di tab Pengaturan.');
+  if (!p.worker_url) throw new Error('worker_url belum diisi di tab KKG Pengaturan.');
 
   var perangkat = baca_(TAB.PERANGKAT).map(function (d) {
     return {

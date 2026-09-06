@@ -12,7 +12,10 @@
 import { h, roti, ikon, kosongkan } from '../ui.js';
 import { rp, bacaNominal, hariIni, tanggalPanjang } from '../rupiah.js';
 import { bacaBanyak, geserHari } from '../parser.js';
-import { st, taruhTransaksi, umumkan, idTransaksi, kategoriAktif } from '../toko.js';
+import {
+  st, taruhTransaksi, umumkan, idTransaksi, kategoriAktif,
+  kelompokKategori, daftarPos, netral
+} from '../toko.js';
 import { kirimTransaksi } from '../api.js';
 
 const CONTOH = 'galon 56500\ntelur 2 rak 78rb\nbakso chukul 59rb kemarin';
@@ -38,8 +41,8 @@ function baruKosong() {
  * Baris tanpa angka aman: parser mengembalikan nominal null, jadi barisnya
  * datang dengan nama dan kategori terisi tapi harga masih kosong.
  */
-export function barisDariTeks(teks, jenis = 'RUMAH_TANGGA') {
-  const daftarKategori = kategoriAktif(jenis);
+export function barisDariTeks(teks) {
+  const daftarKategori = kategoriAktif();
   return bacaBanyak(teks, { riwayat: st.transaksi, bulanAktif: st.bulan }).map((p) => ({
     kunci: idTransaksi(),
     mentah: p.mentah,
@@ -62,8 +65,13 @@ export function formBanyak(f, gambar, tutupSheet, slotKaki) {
   // mengganti tanggal atau jenis tidak boleh menghapus koreksi yang sudah
   // dikerjakan.
   if (!f.baris) f.baris = [];
-  const daftarKategori = kategoriAktif(f.jenis);
-  const pemasukan = f.jenis === 'PEMASUKAN';
+  const daftarKategori = kategoriAktif();
+  const pemasukan = f.jenis === 'Pemasukan';
+  // Pemasukan dan Transfer tidak masuk empat pos, jadi kelompoknya tidak
+  // ditawarkan — sama seperti di mode satuan.
+  const pakaiKelompok = f.jenis === 'Pengeluaran' || f.jenis === 'Alokasi Tujuan';
+  if (!pakaiKelompok) f.kelompok = netral();
+  const pilihan = st.profil.pilihan || {};
 
   // --- kotak tempel --------------------------------------------------------
   const kotak = h('textarea', {
@@ -108,12 +116,16 @@ export function formBanyak(f, gambar, tutupSheet, slotKaki) {
       tanggal: b.tanggal || f.tanggal,
       bulan: (b.tanggal || f.tanggal).slice(0, 7),
       jenis: f.jenis,
+      kelompok: pakaiKelompok ? (kelompokKategori(b.kategori) || f.kelompok) : netral(),
       kategori: b.kategori,
-      item: b.item.trim(),
+      keterangan: b.item.trim(),
       nominal: b.nominal,
+      bayarPakai: f.bayarPakai,
+      milik: f.milik,
       sifat: pemasukan ? '' : b.sifat,
       catatan: '',
-      sumber: 'aplikasi'
+      sumber: 'aplikasi',
+      kunci: false
     }));
 
     // Tampilkan dulu, kirim belakangan — sama seperti mode satuan, karena di
@@ -191,22 +203,52 @@ export function formBanyak(f, gambar, tutupSheet, slotKaki) {
           : 'Nominal, tanggal, dan kategori diisikan otomatis per baris. Bisa juga dari daftar belanja di WhatsApp atau Catatan.')
     ),
 
-    h('div.chip-baris', { gaya: { marginBottom: '12px' } }, [
-      ['RUMAH_TANGGA', 'Rumah tangga'], ['TETAP', 'Tagihan tetap'], ['PEMASUKAN', 'Pemasukan']
-    ].map(([nilai, label]) =>
-      h('button.chip', {
-        type: 'button', kelas: f.jenis === nilai ? 'aktif' : '',
-        'aria-pressed': String(f.jenis === nilai),
-        onclick: () => {
-          f.jenis = nilai;
-          // Kategori yang tidak ada di jenis baru dikosongkan, bukan dibiarkan
-          // menunjuk daftar yang salah.
-          const sah = kategoriAktif(nilai);
-          f.baris.forEach((b) => { if (!sah.includes(b.kategori)) b.kategori = ''; });
-          gambar();
-        }
-      }, label)
-    )),
+    h('div.gulir-x',
+      h('div.chip-baris', { gaya: { flexWrap: 'nowrap', marginBottom: '12px' } },
+        (pilihan.jenis || []).map((nilai) =>
+          h('button.chip', {
+            type: 'button', kelas: f.jenis === nilai ? 'aktif' : '',
+            'aria-pressed': String(f.jenis === nilai),
+            onclick: () => { f.jenis = nilai; gambar(); }
+          }, nilai)
+        )
+      )
+    ),
+
+    // Satu pos untuk seluruh baris. Kategori tiap baris tetap boleh berbeda,
+    // dan kalau kategorinya punya saran pos sendiri, saran itu yang menang
+    // saat disimpan — sekali belanja jarang menyeberang pos, tapi kadang ada
+    // satu barang yang menyeberang.
+    pakaiKelompok ? h('div.isian',
+      h('label', 'Masuk pos mana'),
+      h('div.chip-baris', daftarPos().map((k) =>
+        h('button.chip', {
+          type: 'button', kelas: f.kelompok === k ? 'aktif' : '',
+          'aria-pressed': String(f.kelompok === k),
+          onclick: () => { f.kelompok = k; gambar(); }
+        }, k)
+      ))
+    ) : h('p.mini.samar', { gaya: { marginBottom: '12px' } },
+      `${f.jenis} tidak ikut hitungan empat pos.`),
+
+    h('div.isian',
+      h('label', 'Bayar pakai — untuk semua baris'),
+      h('select', { onchange: (e) => { f.bayarPakai = e.target.value; } },
+        h('option', { value: '', selected: !f.bayarPakai }, '—'),
+        (pilihan.bayarPakai || []).map((k) =>
+          h('option', { value: k, selected: f.bayarPakai === k }, k)))
+    ),
+
+    h('div.isian',
+      h('label', 'Milik'),
+      h('div.chip-baris', (pilihan.milik || []).map((k) =>
+        h('button.chip', {
+          type: 'button', kelas: f.milik === k ? 'aktif' : '',
+          'aria-pressed': String(f.milik === k),
+          onclick: () => { f.milik = k; gambar(); }
+        }, k)
+      ))
+    ),
 
     h('div.isian',
       h('label', 'Tanggal untuk semua baris'),

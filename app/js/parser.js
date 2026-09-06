@@ -1,23 +1,43 @@
 // Mengubah satu baris ketikan bebas menjadi transaksi.
-//   "bakso chukul 59rb"        -> Bakso Chukul, 59.000, hari ini, Pangan
-//   "galon 56500 kemarin"      -> Galon, 56.500, kemarin, Pangan
-//   "tennis 1,5jt tgl 3"       -> Tennis, 1.500.000, tanggal 3 bulan ini, Hobi
+//   "bakso chukul 59rb"        -> Bakso Chukul, 59.000, hari ini, Makan di Luar
+//   "galon 56500 kemarin"      -> Galon, 56.500, kemarin, Bahan Makanan
+//   "tennis 1,5jt tgl 3"       -> Tennis, 1.500.000, tanggal 3 bulan ini, Gym/Olahraga
 // Tebakan kategori memakai riwayat Ryan lebih dulu, baru kata kunci.
 
 import { bacaNominal, hariIni, pad } from './rupiah.js';
 
 const HARI = ['minggu', 'senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu'];
 
+// Kategori mengikuti kolom Kategori di tab PILIHAN. Urutannya penting: yang
+// pertama cocok yang dipakai, jadi pola yang sempit ditaruh di atas pola yang
+// lebar. "Bensin" harus kena BBM sebelum "beli" sempat kena Bahan Makanan.
 const KATA_KUNCI = [
-  ['Pangan', /belanja|pasar|bravo|superindo|aeon|hokky|indomaret|alfamart|lawson|galon|telur|telor|beras|sayur|buah|daging|ikan|ayam|lauk|susu|kopi|jajan|makan|sarapan|nasi|bakso|soto|sate|mie|bakmi|roti|donut|kue|sourdough|martabak|tahu|tempe|gula|santan|bumbu|snack|minum|teh|grabfood|gofood|shopeefood|depot|resto|warung|cafe|kantin|hotpot|pizza|nugget|salad|ragi|tepung|elpiji|gas /i],
-  ['Sandang', /baju|celana|jaket|kaos|sepatu|sandal|tas |kacamata|casing|setrika|strika|laundry|potong rambut|barbershop|salon|vermak|jahit|sabun|pasta gigi|pembalut|skincare|parfum|barber|materai|j&t|ongkir/i],
-  // Bensin, parkir, ojek daring, dan servis kendaraan masuk Papan — mengikuti
-  // cara Ryan mencatatnya di Sheet, bukan tebakan umum.
-  ['Papan', /pbb|kebon|taman|tukang|bebersih|cuci ac|pel |sapu|vaccum|sprei|cabinet|rak |perlengkapan|kompor|lampu|listrik|pdam|paku|semen|cat |gelas|piring|stempel|racun tikus|ovo|topup|token|bensin|parkir|tol|grab|gojek|indrive|ojek|oli|servis|service|cuci mobil|perbaikan motor/i],
-  ['Hobi', /tennis|tenis|gym|fitness|badminton|nonton|bioskop|game|sepeda|lari|renang|buku|grinder|biji kopi|pameran|konser|hobi/i],
-  ['Gift', /kado|hadiah|amplop|traktir|angpao|sumbangan|persembahan|jastip|titipan|fellowship|iuran hut/i],
-  ['Travelling', /liburan|penginapan|hotel|tiket|wisata|travel|pesawat|kereta|villa|resort/i],
-  ['Kesehatan', /rumah sakit|klinik|dokter|apotek|obat|vitamin|imunisasi|vaksin|bpjs|periksa|berobat|scaling/i]
+  ['Subscription', /netflix|spotify|icloud|i-?cloud|youtube|disney|hbo|vidio|langganan|subscription|adobe|canva|chatgpt/i],
+  ['Internet/HP', /telkomsel|indosat|smartfren|tri\b|by\.?u|pulsa|paket data|kuota|indihome|wifi|internet|iphone|cicilan hp/i],
+  ['BBM/Transportasi', /bensin|pertamax|pertalite|solar|spbu|parkir|tol\b|e-?toll|grab|gojek|indrive|maxim|ojek|oli\b|servis|service|cuci mobil|tambal ban|taksi/i],
+  ['Listrik', /listrik|token pln|\bpln\b/i],
+  ['Kesehatan', /rumah sakit|klinik|dokter|apotek|obat|vitamin|imunisasi|vaksin|bpjs|periksa|berobat|scaling|lab\b/i],
+  ['Personal Care', /potong rambut|barbershop|barber|salon|skincare|serum|parfum|pasta gigi|pembalut|facial|spa\b|kutek|midnight baker/i],
+  ['Gym/Olahraga', /gym|fitness|fitnessworks|tennis|tenis|badminton|futsal|renang|lari pagi|sepeda|olahraga/i],
+  ['Hobi/Hiburan', /nonton|bioskop|game|steam|buku|konser|pameran|hobi|grinder|biji kopi|mainan/i],
+  ['Pakaian', /baju|celana|jaket|kaos|sepatu|sandal|\btas\b|kacamata|laundry|vermak|jahit|m&s|uniqlo/i],
+  ['Hadiah', /kado|hadiah|angpao|jastip|titipan|souvenir/i],
+  ['Gereja', /gereja|perpuluhan|persepuluhan|persembahan|kolekte/i],
+  ['Sosial', /amplop|sumbangan|donasi|fellowship|bantuan sosial|\bsosial\b/i],
+  ['Bantuan Orang Tua/Keluarga', /papa|mama|mertua|orang ?tua|kakak|adik|kelg|keluarga|wonokoyo|menganti/i],
+  ['KPR', /\bkpr\b|angsuran rumah|cicilan rumah/i],
+  ['Holiyay', /liburan|penginapan|hotel|tiket pesawat|wisata|villa|resort|pesawat|kereta|holiday|trip\b/i],
+  ['Renovasi Rumah', /renovasi|kitchen set|atap|bangun rumah|kanopi/i],
+  ['Investasi', /investasi|reksadana|reksa dana|saham|emas|deposito|tabungan|arisan/i],
+  ['Dana Darurat', /dana darurat/i],
+  ['Hutang Rumah', /hutang|utang|pinjaman/i],
+  ['Makan di Luar', /makan|sarapan|nasi|bakso|soto|sate|mie|bakmi|roti|donut|kue|sourdough|martabak|snack|jajan|kopi|teh\b|grabfood|gofood|shopeefood|depot|resto|warung|cafe|kantin|hotpot|pizza|salad|traktir|uang makan/i],
+  ['Kebutuhan Rumah', /pdam|\bair\b|iuran|kebon|taman|tukang|bebersih|cuci ac|\bpel\b|sapu|vaccum|sprei|cabinet|\brak\b|perlengkapan|kompor|lampu|paku|semen|\bcat\b|gelas|piring|racun tikus|\bpbb\b|token|sabun|deterjen|elpiji|\bgas\b/i],
+  ['Bahan Makanan', /belanja|pasar|bravo|superindo|aeon|hokky|indomaret|alfamart|lawson|galon|telur|telor|beras|sayur|buah|daging|ikan|ayam|lauk|susu|gula|santan|bumbu|tahu|tempe|ragi|tepung|nugget|minyak goreng/i],
+  ['Gaji Suami', /gaji (ryan|suami|gibeon)/i],
+  ['Gaji Istri', /gaji (tere|thesa|istri)|tunjangan tere/i],
+  ['Pendapatan Tambahan', /pendapatan tambahan|fee\b|honor|komisi/i],
+  ['Bonus/Tunjangan', /\bthr\b|bonus|tunjangan/i]
 ];
 
 /**
@@ -110,8 +130,8 @@ export function tebakKategori(item, riwayat) {
     const kunciPersis = new Map();
     const kunciSebagian = [];
     for (const t of riwayat) {
-      if (!t.item || !t.kategori) continue;
-      const nama = t.item.toLowerCase().trim();
+      if (!t.keterangan || !t.kategori) continue;
+      const nama = t.keterangan.toLowerCase().trim();
       if (nama === teks) hitung(kunciPersis, t.kategori);
       else if (nama.length >= 4 && (teks.includes(nama) || nama.includes(teks))) {
         kunciSebagian.push(t.kategori);

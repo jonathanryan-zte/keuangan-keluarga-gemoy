@@ -1,15 +1,8 @@
 import { h, roti, kosongkan, konfirmasi } from '../ui.js';
-import { rp, namaBulan, bulanIni, geserBulan } from '../rupiah.js';
-import { st, umumkan, saldoSaving, terapkanMuatan } from '../toko.js';
-import { panggil, muatAwal, urlApi, setUrlApi, keluar, kirimAntrian } from '../api.js';
+import { rp } from '../rupiah.js';
+import { st, umumkan, daftarPos, terkumpulPos } from '../toko.js';
+import { panggil, urlApi, setUrlApi, keluar, kirimAntrian } from '../api.js';
 import { antrian, lokal } from '../simpanan.js';
-
-/**
- * Hasil sinkron terakhir. Disimpan di luar fungsi layar supaya tidak ikut
- * hilang saat layarnya digambar ulang — dan sinkron memang selalu diakhiri
- * gambar ulang, karena angkanya berubah.
- */
-let kabarSinkron = null;
 
 export function pengaturan() {
   const wadah = h('div.papan.dua');
@@ -19,41 +12,13 @@ export function pengaturan() {
 }
 
 function isi(wadah, gambar) {
-  const p = st.profil.persen;
-
   wadah.appendChild(h('div.papan',
     h('div.kaca.kartu',
       h('div.kepala-kartu', h('h2', 'Pengingat di HP')),
       blokNotifikasi()
     ),
-    h('div.kaca.kartu',
-      h('div.kepala-kartu', h('h2', 'Aturan 10 / 30 / 20')),
-      h('p.kecil.lembut', { gaya: { marginBottom: '12px' } },
-        'Persentase dihitung dari pemasukan berkategori ' +
-        st.profil.basisPersenKategori.join(', ') +
-        ' — mengikuti rumus yang selama ini dipakai di Sheet, yang memang tidak menghitung Gaji Ryan, THR, maupun fee.'),
-      ['perpuluhan', 'saving', 'entertain'].map((k) => h('div.isian',
-        h('label', k.charAt(0).toUpperCase() + k.slice(1) + ' (%)'),
-        h('input', {
-          type: 'number', min: '0', max: '100', value: p[k],
-          onchange: (e) => { p[k] = Number(e.target.value) || 0; }
-        })
-      )),
-      h('button.tombol.tosca.lebar', {
-        onclick: async () => {
-          try {
-            await panggil('pengaturan.simpan', {
-              peta: {
-                persen_perpuluhan: String(p.perpuluhan),
-                persen_saving: String(p.saving),
-                persen_entertain: String(p.entertain)
-              }
-            });
-            roti('Tersimpan'); umumkan();
-          } catch (e) { roti(e.message, 'salah'); }
-        }
-      }, 'Simpan persentase')
-    )
+    kartuPos(),
+    kartuTujuanTulis()
   ));
 
   wadah.appendChild(h('div.papan',
@@ -99,7 +64,8 @@ function isi(wadah, gambar) {
         h('div.sel', h('div.k', 'Bulan tercatat'),
           h('div.v.angka', String(new Set(st.transaksi.map((t) => t.bulan)).size))),
         h('div.sel', h('div.k', 'Tagihan rutin'), h('div.v.angka', String(st.rutin.length))),
-        h('div.sel', h('div.k', 'Saldo saving'), h('div.v.angka', rp(saldoSaving())))
+        h('div.sel', h('div.k', 'Terkumpul saving'),
+          h('div.v.angka', rp(terkumpulPos(daftarPos().find((k) => /saving/i.test(k)) || daftarPos()[1]))))
       ),
       h('p.mini.samar', { gaya: { marginTop: '12px' } },
         'Sumber kebenaran datanya tetap Google Sheet Anda. Aplikasi ini hanya menyimpan salinan sementara di HP supaya tetap bisa dibuka saat tidak ada sinyal.'),
@@ -114,67 +80,48 @@ function isi(wadah, gambar) {
         }
       }, 'Muat ulang dari Sheet')
     ),
-    kartuSinkron()
   ));
 }
 
 /**
- * Tarik isi tab lama (`Monthly 26`) yang masih diisi admin.
- *
- * Tombolnya ada di sini, bukan berjalan sendiri tiap kali aplikasi dibuka,
- * karena membaca seluruh tab lama butuh beberapa detik — terlalu lama untuk
- * ditunggu di layar pembuka. Yang otomatis adalah pemicu harian di Apps
- * Script; tombol ini untuk saat Ryan ingin melihatnya sekarang juga.
+ * Persentase empat pos hanya ditampilkan, tidak bisa diubah dari sini.
+ * Sumbernya tab `TARGET` di spreadsheet, dan menyediakan dua tempat untuk
+ * mengubah angka yang sama adalah cara tercepat membuat keduanya berselisih.
  */
-function kartuSinkron() {
-  const tombol = h('button.tombol.tosca.lebar', {
-    onclick: async () => {
-      tombol.disabled = true;
-      const semula = tombol.textContent;
-      tombol.textContent = 'Membaca sheet lama…';
-      try {
-        const hasil = await panggil('sinkron.jalankan');
-        kabarSinkron = hasil;
-        // Angka di seluruh aplikasi ikut berubah, jadi datanya diambil ulang.
-        terapkanMuatan(await muatAwal(geserBulan(bulanIni(), -13)));
-        roti(hasil.ditambah ? `${hasil.ditambah} catatan baru masuk` : 'Sudah paling baru');
-        umumkan();
-      } catch (e) {
-        tombol.disabled = false;
-        tombol.textContent = semula;
-        roti(e.message, 'salah');
-      }
-    }
-  }, 'Tarik data dari sheet lama');
-
+function kartuPos() {
+  const persen = st.profil.target?.pos || {};
   return h('div.kaca.kartu',
-    h('div.kepala-kartu', h('h2', 'Data dari sheet lama')),
+    h('div.kepala-kartu', h('h2', 'Empat pos')),
     h('p.kecil.lembut', { gaya: { marginBottom: '12px' } },
-      'Selama admin masih mengisi tab Monthly 26 di Google Sheet, isinya ditarik ke sini. ' +
-      'Berjalan sendiri tiap subuh; tombol ini untuk menariknya sekarang juga.'),
-    tombol,
-    kabarSinkron ? ringkasSinkron(kabarSinkron) : null,
-    h('p.mini.samar', { gaya: { marginTop: '10px' } },
-      'Yang sudah Anda betulkan di sini tidak akan tertimpa, dan tidak ada baris yang dihapus. ' +
-      'Rinciannya ada di tab "Sinkron Cek" di Google Sheet.')
+      'Angka ini dibaca dari tab TARGET di Google Sheet. Ubah di sana kalau porsinya berubah — ' +
+      'aplikasi ikut sendiri begitu dimuat ulang.'),
+    h('div.petak', daftarPos().map((k) => h('div.sel',
+      h('div.k', k.replace(/\s*\d+%$/, '')),
+      h('div.v.angka', `${persen[k] ?? 0}%`)
+    )))
   );
 }
 
-function ringkasSinkron(kabar) {
-  const baris = [
-    ['Catatan baru masuk', kabar.ditambah],
-    ['Nominal diperbarui', kabar.nominalDiperbarui],
-    ['Mutasi saving baru', kabar.savingDitambah],
-    ['Tidak ada lagi di sheet lama', kabar.hilang],
-    ['Perlu Anda periksa sendiri', kabar.curiga]
-  ].filter(([, n]) => n > 0);
-
-  if (!baris.length) {
-    return h('p.kecil.lembut', { gaya: { marginTop: '12px' } },
-      'Tidak ada yang baru — semua isi sheet lama sudah ada di sini.');
-  }
-  return h('div.petak', { gaya: { marginTop: '12px' } },
-    ...baris.map(([k, n]) => h('div.sel', h('div.k', k), h('div.v.angka', String(n)))));
+/**
+ * Ke mana transaksi baru ditulis. Nilainya milik Sheet — kartu ini hanya
+ * menjelaskan akibatnya, karena akibatnya tidak kelihatan dari nama kuncinya.
+ */
+function kartuTujuanTulis() {
+  const keInput = st.profil.tabTulis === 'INPUT TRANSAKSI';
+  return h('div.kaca.kartu',
+    h('div.kepala-kartu', h('h2', 'Tempat menulis')),
+    h('div.sel', { gaya: { marginBottom: '10px' } },
+      h('div.k', 'Transaksi baru masuk ke tab'),
+      h('div.v', { gaya: { fontSize: '15px' } }, st.profil.tabTulis || 'KKG Transaksi')),
+    h('p.kecil.lembut',
+      keInput
+        ? 'Catatan dari HP mendarat langsung di tabel yang sama dengan isian tangan, jadi REKAP BULANAN ' +
+          'dan DASHBOARD ikut terisi. Baris dari sheet juga bisa diubah dan dihapus dari aplikasi.'
+        : 'Catatan dari HP disimpan terpisah di tab KKG Transaksi, dan tab INPUT TRANSAKSI tidak disentuh sama sekali. ' +
+          'Akibatnya REKAP BULANAN dan DASHBOARD belum melihat catatan dari HP — angka di aplikasi sudah menggabungkan keduanya.'),
+    h('p.mini.samar', { gaya: { marginTop: '10px' } },
+      'Ganti dengan mengubah baris "tab_tulis" di tab KKG Pengaturan, lalu muat ulang aplikasi.')
+  );
 }
 
 /**

@@ -1,6 +1,9 @@
 import { h, ikon } from '../ui.js';
 import { rp, rpSingkat, desimal, namaBulan, tanggalPanjang, bulanIni, geserBulan } from '../rupiah.js';
-import { st, ringkas, perKategori, laju, transaksiBulan, jatuhTempoDekat, saldoSaving, anggaranBulan, belanjaAktif } from '../toko.js';
+import {
+  st, ringkas, perKategori, laju, transaksiBulan, jatuhTempoDekat,
+  belanjaAktif, daftarPos, targetPos, terkumpulPos, progresTarget
+} from '../toko.js';
 import { batangKategori, garisTren, batangSifat } from '../grafik.js';
 import { bukaTambah } from './tambah.js';
 import { barisTransaksi } from './riwayat.js';
@@ -21,7 +24,8 @@ export function beranda() {
       kartuKategori(kat, r)
     ),
     h('div.papan',
-      kartuAturan(r),
+      kartuPos(),
+      kartuTarget(),
       kartuTren(),
       kartuTerakhir()
     )
@@ -35,7 +39,7 @@ function kartuSisa(r, l) {
     h('div.nilai.angka', { kelas: r.sisa < 0 ? 'minus' : '' }, rp(r.sisa)),
     h('div.rinci',
       h('div', 'Masuk', h('b.angka', rpSingkat(r.pemasukan))),
-      h('div', 'Keluar', h('b.angka', rpSingkat(r.pengeluaran))),
+      h('div', 'Keluar', h('b.angka', rpSingkat(r.totalKeluar))),
       h('div', 'Rata-rata/hari', h('b.angka', rpSingkat(l.rata)))
     ),
     h('div.bar-hari',
@@ -51,10 +55,15 @@ function kartuSisa(r, l) {
 }
 
 function kartuAngka(r, l) {
+  const pos = daftarPos();
+  const saving = pos.find((k) => /saving/i.test(k)) || pos[1];
   return h('div.petak',
-    sel('Pengeluaran tetap', rp(r.tetap), `${bagi(r.tetap, r.pengeluaran)}% dari total keluar`),
-    sel('Rumah tangga', rp(r.rumahTangga), `Perkiraan akhir bulan ${rpSingkat(l.perkiraanAkhir)}`),
-    sel('Saldo saving', rp(saldoSaving()), `${st.saving.length} catatan`),
+    sel('Belanja harian', rp(r.harian), `Perkiraan akhir bulan ${rpSingkat(l.perkiraanAkhir)}`),
+    sel('Dialokasikan', rp(r.totalKeluar - r.harian), `${bagi(r.totalKeluar - r.harian, r.totalKeluar)}% dari total keluar`),
+    // Saving tidak lagi punya tabel sendiri: ia hanya transaksi berkelompok
+    // `Saving 30%`, jadi saldonya dijumlah dari riwayat dan tidak bisa
+    // berselisih dengan angka mana pun.
+    sel('Terkumpul saving', rp(terkumpulPos(saving)), 'sejak awal catatan'),
     sel('Jumlah transaksi', String(r.jumlah), l.iniBulanBerjalan ? `${desimal(r.jumlah / Math.max(l.hariBerjalan, 1))} per hari` : '')
   );
 }
@@ -116,33 +125,73 @@ function kartuBelanja(daftar) {
 
 function kartuKategori(kat, r) {
   return h('div.kaca.kartu',
-    h('div.kepala-kartu', h('h2', 'Belanja rumah tangga'),
-      h('span.aksi.samar.mini', rp(r.rumahTangga))),
-    batangSifat(r.rtWajib, r.rtKeinginan),
+    h('div.kepala-kartu', h('h2', `Belanja ${daftarPos()[0]}`),
+      h('span.aksi.samar.mini', rp(r.harian))),
+    batangSifat(r.harianWajib, r.harianKeinginan),
     h('div', { gaya: { marginTop: '16px' } }, batangKategori(kat))
   );
 }
 
-function kartuAturan(r) {
-  const p = st.profil.persen;
-  const baris = [
-    ['Perpuluhan', p.perpuluhan, r.perpuluhan],
-    ['Saving', p.saving, r.saving],
-    ['Entertain', p.entertain, r.entertain]
-  ];
+/**
+ * Empat pos, target rupiahnya, dan berapa yang sudah terpakai. Persennya
+ * datang dari tab TARGET; targetnya sendiri persen itu dikali pemasukan bulan
+ * ini — persis cara REKAP BULANAN membacanya.
+ */
+function kartuPos() {
+  const t = targetPos();
+  const r = ringkas();
   return h('div.kaca.kartu',
-    h('div.kepala-kartu', h('h2', 'Perpuluhan, saving, entertain')),
+    h('div.kepala-kartu', h('h2', 'Empat pos bulan ini')),
     h('p.mini.samar', { gaya: { marginBottom: '12px' } },
-      `Dihitung dari penghasilan yang jadi basis bulan ini: ${rp(r.basis)}`),
-    baris.map(([nama, persen, nilai]) => h('div.pagu',
+      r.pemasukan
+        ? `Dihitung dari pemasukan bulan ini: ${rp(r.pemasukan)}`
+        : 'Belum ada pemasukan bulan ini, jadi targetnya masih nol.'),
+    daftarPos().map((k) => {
+      const p = t[k];
+      const lewat = p.target > 0 && p.terpakai > p.target;
+      return h('div.pagu',
+        h('div.atas',
+          h('span.nama', k.replace(/\s*\d+%$/, '')),
+          h('span.lencana.tosca', `${p.persen}%`),
+          h('span.rp.angka', rp(p.terpakai))
+        ),
+        h('div.jalur',
+          h('div.isi', {
+            kelas: !p.target ? 'aman' : lewat ? 'jebol' : p.bagian >= 80 ? 'hampir' : 'aman',
+            gaya: { width: `${Math.min(p.bagian || 0, 100)}%` }
+          })
+        ),
+        h('div.ket',
+          h('span', `Target ${rpSingkat(p.target)}`),
+          h('span.kanan', p.target
+            ? (lewat ? `Lewat ${rpSingkat(p.terpakai - p.target)}` : `Sisa ${rpSingkat(p.sisa)}`)
+            : '—')
+        )
+      );
+    })
+  );
+}
+
+/** Target rupiah dari tab TARGET: renovasi, utang, trip, travel, KPR. */
+function kartuTarget() {
+  const daftar = progresTarget();
+  if (!daftar.length) return null;
+  return h('div.kaca.kartu',
+    h('div.kepala-kartu', h('h2', 'Target keluarga')),
+    daftar.map((t) => h('div.pagu',
       h('div.atas',
-        h('span.nama', nama),
-        h('span.lencana.tosca', `${persen}%`),
-        h('span.rp.angka', rp(nilai))
+        h('span.nama', t.nama),
+        t.kategori ? null : h('span.lencana.netral', 'belum terhubung'),
+        h('span.rp.angka', rpSingkat(t.nilai))
+      ),
+      h('div.jalur', h('div.isi.aman', { gaya: { width: `${t.persen}%` } })),
+      h('div.ket',
+        h('span', t.kategori
+          ? `Terkumpul ${rpSingkat(t.terkumpul)}${t.bulanan ? ' bulan ini' : ''}`
+          : 'Belum ada kategori yang dipetakan ke target ini'),
+        h('span.kanan', t.kategori ? `Sisa ${rpSingkat(t.sisa)}` : (t.periode || ''))
       )
-    )),
-    r.basis === 0 ? h('p.mini.samar', { gaya: { marginTop: '8px' } },
-      'Belum ada pemasukan berkategori Gaji Pokok / Gaji BRU / Tunjangan / Uang Makan di bulan ini.') : null
+    ))
   );
 }
 
@@ -152,7 +201,7 @@ function kartuTren() {
   const baris = bulan
     .map((b) => {
       const x = ringkas(b);
-      return { bulan: b, pemasukan: x.pemasukan, pengeluaran: x.pengeluaran };
+      return { bulan: b, pemasukan: x.pemasukan, pengeluaran: x.totalKeluar };
     })
     .filter((b, i, arr) => b.pemasukan || b.pengeluaran || i === arr.length - 1);
 

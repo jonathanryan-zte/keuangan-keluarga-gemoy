@@ -1,167 +1,101 @@
 # Panduan pasang — Keuangan Keluarga Gemoy
 
-Sekali pasang, lalu tinggal dipakai. Waktu yang dibutuhkan kira-kira 25 menit.
+Sekali pasang, lalu tinggal dipakai. Waktu yang dibutuhkan kira-kira 20 menit.
 
 Urutannya penting: **Sheet dulu, aplikasi belakangan.** Notifikasi (langkah 5)
 boleh dilewati dulu dan dikerjakan kapan saja nanti — bagian lain tetap jalan.
+
+Aplikasi ini membaca tab `INPUT TRANSAKSI` **hidup, apa adanya, setiap kali
+dibuka**. Tidak ada migrasi, tidak ada pekerjaan sinkron, tidak ada salinan yang
+perlu dirukunkan: satu sel diubah di Sheet, angkanya langsung ikut berubah di
+HP. Yang ditulis aplikasi hanya tab-tab berawalan `KKG `.
 
 ---
 
 ## 1. Pasang skrip di Google Sheet (10 menit)
 
-1. Buka Sheet keuangan Anda → menu **Ekstensi → Apps Script**.
-2. Hapus isi `Code.gs` bawaan. Lalu buat lima berkas dan tempel isinya dari folder
-   `apps-script/` di proyek ini. Nama berkas di editor **tanpa akhiran `.gs`** —
-   editornya menambahkan sendiri:
+Spreadsheet yang dipakai adalah yang berisi tab **`INPUT TRANSAKSI`**,
+**`PILIHAN`**, dan **`TARGET`**. Kalau berkasnya masih berupa Excel yang
+di-upload (judulnya berakhiran `.xlsx` atau `.xlsm`), ubah dulu jadi Google
+Sheet asli lewat **File → Simpan sebagai Google Sheets** — Apps Script tidak
+bisa membuka, apalagi menulisi, berkas Office.
+
+1. Buka spreadsheet itu → menu **Ekstensi → Apps Script**.
+2. Cara termudah mengirim kodenya adalah lewat `clasp` dari komputer:
+
+   ```bash
+   tools/deploy.sh "pasang pertama"
+   ```
+
+   Kalau memilih salin-tempel manual: hapus isi `Code.gs` bawaan, lalu buat
+   empat berkas ini dan tempel isinya dari folder `apps-script/`. Nama berkas di
+   editor **tanpa akhiran `.gs`** — editornya menambahkan sendiri.
 
    | Buat berkas bernama | Tempel isi dari |
    |---|---|
    | `Kode`      | `apps-script/Kode.gs` |
    | `Ringkasan` | `apps-script/Ringkasan.gs` |
    | `Rutin`     | `apps-script/Rutin.gs` |
-   | `Migrasi`   | `apps-script/Migrasi.gs` |
-   | `Sinkron`   | `apps-script/Sinkron.gs` |
-   | `Selisih`   | `apps-script/Selisih.gs` |
    | `Pengingat` | `apps-script/Pengingat.gs` |
 
 3. Simpan (Ctrl/Cmd + S).
 4. Di kotak pilihan fungsi di atas, pilih **`siapkanSheet`** → klik **Run**.
    Google akan meminta izin sekali: *Review permissions → pilih akun Anda →
-   Advanced → Go to (nama proyek) → Allow*. Ini wajar — skripnya memang perlu izin
-   menulis ke Sheet Anda sendiri.
+   Advanced → Go to (nama proyek) → Allow*. Ini wajar — skripnya memang perlu
+   izin menulis ke spreadsheet Anda sendiri.
 
-   Setelah selesai akan muncul sembilan tab baru: `Transaksi`, `Rutin`, `Anggaran`,
-   `Kategori`, `Saving`, `Perangkat`, `Pengaturan`, `Ringkasan`, `Belanja`. Tab
-   lama Anda tidak disentuh.
+   Setelah selesai akan muncul sembilan tab baru, semuanya berawalan `KKG `:
+   `KKG Transaksi`, `KKG Tanda`, `KKG Kategori`, `KKG Anggaran`, `KKG Rutin`,
+   `KKG Belanja`, `KKG Perangkat`, `KKG Pengaturan`, `KKG Ringkasan`.
 
-   > **Kalau Sheet Anda sudah dipasang sebelum tab `Kategori` ada:** jalankan
-   > `siapkanSheet` sekali lagi. Tab `Kategori` akan dibuat dan diisi daftar
-   > bawaan, dan tab `Anggaran` mendapat dua kolom baru (`status`, `diubah`)
-   > tanpa mengubah pagu yang sudah ada.
-
-   > **Kalau Sheet Anda dipasang sebelum ada Daftar Belanja:** jalankan
-   > `siapkanSheet` sekali lagi, lalu **Deploy ulang sebagai New version**
-   > (langkah 4 di bawah). Tab `Belanja` akan dibuat kosong. Tanpa Deploy ulang,
-   > aplikasi memanggil kode lama dan layar Belanja menjawab
-   > "Aksi tidak dikenal: belanja.simpan" — daftarnya tetap bisa dipakai di HP,
-   > tapi tidak pernah sampai ke Sheet.
+   **Tab bawaan Anda tidak disentuh sama sekali.** Kalau `siapkanSheet` menolak
+   jalan dengan pesan "Spreadsheet ini bukan yang diharapkan", berarti skripnya
+   menempel di berkas yang salah — ia sengaja berhenti daripada membuat tab di
+   tempat yang keliru.
 
 5. Tetapkan PIN keluarga. **Jangan menjalankan `setPin` langsung dari tombol
    Run** — fungsi itu butuh argumen, sedangkan tombol Run memanggilnya tanpa
    argumen, jadi yang muncul hanya pesan galat. Caranya:
 
-   a. Buka tab **`Pengaturan`** di Spreadsheet, cari baris berkunci
-      **`pin_baru`**, lalu tulis PIN pilihan Anda (4–6 angka) di kolom sebelahnya.
+   a. Buka tab **`KKG Pengaturan`**, cari baris berkunci **`pin_baru`**, lalu
+      tulis PIN pilihan Anda (4–6 angka) di kolom sebelahnya.
    b. Kembali ke editor Apps Script, jalankan fungsi **`pasangPinDariSheet`**.
    c. Selesai — PIN tersimpan dalam bentuk teracak, dan sel `pin_baru`
       dikosongkan sendiri supaya angkanya tidak tertinggal di spreadsheet.
 
-   Mau ganti PIN nanti? Ulangi tiga langkah yang sama.
+   Mau ganti PIN nanti? Ulangi tiga langkah yang sama. Menu **KKG** di bilah
+   atas Spreadsheet juga memuat ketiga fungsi ini, jadi tidak perlu membuka
+   editor lagi.
 
 6. Isi daftar tagihan & cicilan awal: pilih fungsi **`isiRutinAwal`** → **Run**.
-   Angkanya diambil dari Sheet Anda per September 2026; nanti bisa diubah dari
-   dalam aplikasi.
+   Angkanya diambil dari baris September 2026 di `INPUT TRANSAKSI`; nanti bisa
+   diubah dari dalam aplikasi.
 
 ---
 
-## 2. Pindahkan data lama (5 menit)
+## 2. Ke mana catatan dari HP ditulis (1 menit)
 
-1. Jalankan fungsi **`periksaMigrasi`**. Ini **tidak mengubah apa pun** — hanya
-   menulis laporan ke tab baru `Migrasi Cek`.
-2. Buka tab `Migrasi Cek` dan bandingkan kolom "migrasi" dengan "sheet".
+Ini satu-satunya setelan yang mengubah perilaku aplikasi secara besar, dan
+tempatnya satu baris di tab **`KKG Pengaturan`**, kunci **`tab_tulis`**.
 
-   **Yang wajar terjadi:**
+| Isi selnya | Akibatnya |
+|---|---|
+| `KKG Transaksi` (bawaan) | Catatan dari HP disimpan di tab milik aplikasi. `INPUT TRANSAKSI` tidak disentuh sama sekali. **Tapi `REKAP BULANAN` dan `DASHBOARD` belum melihat catatan dari HP** — keduanya cuma membaca `INPUT TRANSAKSI`. Angka di aplikasi sendiri selalu menggabungkan keduanya, jadi aplikasi tidak pernah salah; yang tertinggal adalah rekap di sheet. |
+| `INPUT TRANSAKSI` | Catatan dari HP mendarat di tabel yang sama dengan isian tangan, memakai baris siap-isi di bawah tabel lebih dulu. `REKAP BULANAN` dan `DASHBOARD` ikut terisi. Baris dari sheet juga jadi bisa diubah dan dihapus dari aplikasi. |
 
-   - **Rumah tangga selisih 0** di semua bulan. Ini yang paling penting; kalau
-     ada yang tidak nol, hentikan dan periksa dulu.
-   - **Pemasukan migrasi lebih besar** di Des 2025, Mar, Apr, dan Jun 2026.
-     Bukan salah hitung: rumus `=sum(C6:C11)` di Sheet lama hanya menjumlah
-     baris 6–11, sementara THR (Des), Fee Giznus + Uang Koperasi (Mar),
-     PK GKKA + PK Paskah (Apr), dan PK Emoy (Jun) ada di baris 12–13 sehingga
-     tidak pernah ikut terhitung. Migrasi menghitungnya — jadi angka barunya
-     yang benar.
-   - **Pengeluaran tetap migrasi lebih kecil** di hampir semua bulan 2026.
-     Juga bukan salah hitung: rumus total di Sheet lama tidak konsisten antar
-     bulan — Februari `=SUM(L6:L38)` ikut menjumlah baris Saving dan Perpuluhan,
-     Mei ikut menjumlah Arisan Cappadocia dua kali, Juli mulai dari baris 9
-     sehingga dua arisan terlewat. Perpuluhan/Saving/Entertain sengaja **tidak**
-     dimigrasikan sebagai transaksi karena tab `Ringkasan` menghitungnya ulang
-     dari persentase; kalau ikut dimasukkan, uangnya terhitung dua kali.
-     Kolom "baris turunan yang sengaja dilewati" memperlihatkan angkanya.
-   - Kolom "tglx" memberi tahu berapa transaksi yang tidak punya petunjuk
-     tanggal di namanya. Semua itu diberi tanggal 1 dan catatan
-     `tanggal perkiraan`, dan bisa dirapikan belakangan lewat aplikasi.
+Mulailah dengan bawaannya. Kalau sudah yakin, ganti isi selnya — tidak ada kode
+yang perlu di-deploy ulang, cukup muat ulang aplikasinya di HP.
 
-3. Kalau sudah cocok, jalankan **`jalankanMigrasi`**.
-   Salah? Jalankan **`batalkanMigrasi`** — hanya baris bersumber `migrasi` yang
-   dihapus, catatan yang Anda masukkan lewat aplikasi tidak tersentuh. Boleh
-   diulang berapa kali pun.
+> **Kenapa tidak langsung `INPUT TRANSAKSI` saja?** Karena selama masa coba,
+> satu kesalahan aplikasi berarti baris asing di tabel yang Anda pakai
+> sehari-hari. Dengan bawaannya, kesalahan apa pun terkumpul di satu tab yang
+> bisa dihapus seluruhnya tanpa menyentuh catatan tangan Anda.
 
-4. Opsional: jalankan **`usulkanAnggaran`** untuk mengisi pagu bulan berjalan
-   dari rata-rata belanja enam bulan terakhir.
-
-> **Catatan soal saldo saving.** Rantai saldo di `SAVING 2026` punya satu rumus
-> yang salah rujuk: baris ke-10 memakai `=D7+B10-C10`, jadi melompati baris 8
-> dan 9 (Rp600.000 + Rp200.000) dan semua baris di bawahnya mewarisi kekurangan
-> itu. Tab `Saving` yang baru menghitung ulang seluruh mutasi, sehingga saldonya
-> **Rp14.127.046**, bukan Rp13.327.046 seperti yang tertulis di tab lama.
-
----
-
-## 2b. Kalau admin masih mengisi `Monthly 26` (2 menit)
-
-Langkah 2 memindahkan data lama **sekali**. Kalau kenyataannya tab lama masih
-dipakai setiap hari — admin belum pindah ke aplikasi, dan memang tidak harus —
-bagian ini yang menjaga keduanya tetap sama.
-
-1. Jalankan **`periksaSinkron`**. Tidak mengubah apa pun; ia menulis rencananya
-   ke tab baru **`Sinkron Cek`**, satu baris per perubahan yang akan terjadi.
-2. Baca tabelnya. Kolom "aksi" hanya berisi lima kemungkinan:
-
-   | aksi | artinya |
-   |---|---|
-   | `tambah` | baris baru dari tab lama yang belum ada di aplikasi |
-   | `nominal berubah` | angkanya dibetulkan admin; yang lain tidak disentuh |
-   | `tidak ada lagi di sheet lama` | barisnya hilang dari tab lama. **Tidak dihapus** — hanya diberi catatan, Anda yang memutuskan |
-   | `periksa sendiri` | dugaan yang tidak cukup kuat untuk dikerjakan mesin. Biasanya admin mengubah tulisan nama barangnya, atau belanja yang sama tercatat dua kali (sekali lewat aplikasi, sekali di tab lama) |
-   | `tambah saving` | mutasi baru di `SAVING 2026` |
-
-3. Kalau sudah cocok, jalankan **`jalankanSinkron`**. Aman diulang berapa kali
-   pun: baris yang sudah pernah ditarik dikenali dari isinya sendiri, jadi tidak
-   pernah tergandakan.
-4. Jalankan **`pasangPemicuSinkron`** sekali. Setelah itu sinkronnya jalan
-   sendiri tiap jam 5 pagi, dan hasil tiap kali jalan tercatat di tab
-   `Sinkron Log`.
-
-Setelah Sheet dibuka ulang, ada menu **KKG** di sebelah menu Bantuan berisi dua
-langkah yang sama — supaya bisa dijalankan tanpa membuka editor Apps Script.
-Dari HP, tombolnya ada di **Pengaturan → Data dari sheet lama**.
-
-### Kalau angka "Sisa" di aplikasi tidak sama dengan di sheet lama
-
-Jalankan **`periksaSelisih`** (atau menu **KKG → Kenapa Sisa beda dengan sheet
-lama?**). Ia tidak mengubah apa pun; ia menulis tangga rekonsiliasi ke tab
-**`Selisih Cek`**, satu bulan satu blok, dan menutup selisihnya sampai nol.
-
-Selisihnya selalu campuran dua hal yang sifatnya berbeda:
-
-- **Bedanya data** — ada baris di `Monthly 26` yang belum tertarik, atau catatan
-  yang hanya ada di aplikasi. Ini hilang sendiri setelah sinkron dijalankan.
-- **Bedanya rumus** — "Sisa" di aplikasi berarti `pemasukan − tetap − rumah
-  tangga`, dan Perpuluhan / Saving / Entertain ditampilkan sebagai angka
-  tersendiri di kartu "Aturan 10 / 30 / 20". Kalau rumus `Sisa` di sheet lama
-  sudah ikut mengurangkan ketiganya, angkanya memang tidak akan pernah sama —
-  dan tidak seharusnya sama. Ini **tidak** hilang dengan sinkron.
-
-Baris terakhir tiap bulan bernama **"Belum terjelaskan"**. Kalau isinya nol,
-seluruh selisihnya sudah terurai. Kalau tidak nol, kemungkinan besar rumus total
-di sheet lama untuk bulan itu memang tidak konsisten — hal yang sudah tercatat
-di langkah 2 di atas.
-
-> **Yang tidak akan pernah dilakukan sinkron:** menimpa apa yang sudah Anda
-> betulkan. Kategori, sifat WAJIB/KEINGINAN, dan tanggal yang Anda perbaiki
-> lewat aplikasi tetap seperti itu walaupun tebakan mesinnya sekarang berbeda.
-> Transaksi yang Anda catat sendiri lewat aplikasi juga tidak pernah disentuh.
+**Kalau nanti mau menyatukannya secara manual:** sepuluh kolom pertama
+`KKG Transaksi` disusun persis sama dengan `INPUT TRANSAKSI`, jadi tinggal
+salin blok A:J-nya ke bawah tabel dan hapus baris asalnya. Aplikasi sudah
+menyiapkan diri untuk itu: baris yang muncul di dua tempat hanya dihitung
+sekali, dan yang menang adalah baris di `INPUT TRANSAKSI`.
 
 ---
 
@@ -179,9 +113,17 @@ di langkah 2 di atas.
 > Google" — tanpa itu, aplikasi di HP tidak bisa memanggil skripnya sama sekali.
 > Yang menjaga datanya adalah PIN, bukan alamatnya.
 
-**Setiap kali Anda mengubah kode `.gs`, ulangi Deploy** — pilih
-*Manage deployments → ikon pensil → Version: New version → Deploy*. Kalau
-membuat *New deployment*, URL-nya berubah dan harus ditempel ulang di aplikasi.
+5. Simpan ID deployment-nya (bagian URL antara `/macros/s/` dan `/exec`) supaya
+   `tools/deploy.sh` bisa memakainya lagi:
+
+   ```bash
+   echo "AKfyc..." > .clasp-deployment
+   ```
+
+**Setiap kali Anda mengubah kode `.gs`, ulangi Deploy** — cara termudah
+`tools/deploy.sh "keterangan"`, atau lewat editor: *Manage deployments → ikon
+pensil → Version: New version → Deploy*. Kalau membuat *New deployment*,
+URL-nya berubah dan harus ditempel ulang di setiap HP.
 
 ---
 
@@ -236,7 +178,7 @@ tidak bisa dilakukan Apps Script.
    `SURAT_KONTAK` (isi yang terakhir dengan `mailto:` + email Anda). Salin
    alamat Worker yang muncul setelah deploy.
 
-3. Di Sheet, buka tab **`Pengaturan`** dan isi tiga baris ini:
+3. Di Sheet, buka tab **`KKG Pengaturan`** dan isi tiga baris ini:
 
    | kunci | nilai |
    |---|---|
@@ -266,13 +208,15 @@ tidak bisa dilakukan Apps Script.
 | "PIN salah" padahal benar | `setPin` belum pernah dijalankan, atau dijalankan di proyek Apps Script yang berbeda |
 | Perubahan kode `.gs` tidak terasa | Belum Deploy ulang sebagai **New version** |
 | Menekan Run tapi yang jalan fungsi lain | Pemilih fungsi di toolbar kadang cuma berubah tulisannya tanpa benar-benar ganti pilihan. Cara paling aman: klik dulu berkas yang memuat fungsinya di panel Files, lalu **cek riwayat di menu Executions** (ikon jam di kiri) untuk memastikan nama fungsi yang benar-benar dijalankan — jangan cuma percaya tulisan "Execution completed" |
-| Angka aplikasi beda dengan Sheet | Jalankan `segarkanRingkasan` di Apps Script |
-| Catatan admin di `Monthly 26` tidak muncul di aplikasi | Sinkronnya belum jalan. Tekan **Pengaturan → Tarik data dari sheet lama** di HP, atau jalankan `jalankanSinkron`. Kalau ini sering terjadi, `pasangPemicuSinkron` belum pernah dijalankan |
-| Sisa di aplikasi beda dengan Sisa di Sheet | Jalankan `periksaSelisih`, lalu baca tab `Selisih Cek` — ia menguraikan selisihnya sampai nol dan memisahkan mana yang karena belum sinkron, mana yang karena rumusnya memang berbeda |
-| Ada transaksi kembar | Kemungkinan besar satu belanja dicatat dua kali: sekali lewat aplikasi, sekali di `Monthly 26`. Tab `Sinkron Cek` sudah menandainya dengan aksi `periksa sendiri` |
+| Tab `KKG Ringkasan` tertinggal | Jalankan `segarkanRingkasan`, atau menu **KKG → Segarkan Ringkasan** |
+| Baris yang baru diketik di Sheet tidak muncul di aplikasi | Muat ulang aplikasinya. Kalau tetap tidak muncul, periksa apakah kolom Keterangan **dan** Nominal-nya sama-sama kosong — baris seperti itu dianggap baris siap-isi dan sengaja dilewati |
+| Angka di aplikasi lebih besar daripada `REKAP BULANAN` | Wajar selama `tab_tulis` masih `KKG Transaksi`. Selisihnya persis isi tab `KKG Transaksi`, karena rumus REKAP cuma membaca `INPUT TRANSAKSI`. Lihat langkah 2 |
+| Tombol Ubah/Hapus tidak ada di sebuah transaksi | Baris itu tinggal di `INPUT TRANSAKSI`, jadi hanya bisa diubah dari Google Sheets. Kalau ingin aplikasi ikut mengelolanya, ganti `tab_tulis` (langkah 2) |
+| Sifat WAJIB/KEINGINAN sebuah baris tiba-tiba kembali ke bawaan | Penandanya dikunci pada isi barisnya. Mengubah nominal, keterangan, tanggal, atau kategori baris itu di Sheet melepaskan penandanya — setel ulang sekali dari aplikasi |
+| Kolom Trip Kota / Travel LN / Renovasi / Bayar Utang di REKAP selalu nol | Rumusnya menjumlah kategori yang tidak ada di dropdown `PILIHAN`. Aplikasi sudah menyediakan keempatnya lewat tab `KKG Kategori`; supaya dropdown di Sheet ikut, salin keempat namanya ke `PILIHAN` kolom C dan lebarkan validasi kolom Kategori |
 | Notifikasi tidak datang di iPhone | Aplikasi belum ditambahkan ke Layar Utama, atau izin belum diberikan |
 | Catatan tertahan "tertunda" | Sedang tanpa sinyal. Akan terkirim sendiri; bisa dipaksa lewat Pengaturan → Kirim catatan tertunda |
 
 Data Anda selalu ada di Google Sheet. Aplikasi ini hanya jendela — kalau
-aplikasinya bermasalah, angkanya tetap utuh di `Transaksi` dan bisa dibuka
-langsung dari Sheet seperti biasa.
+aplikasinya bermasalah, angkanya tetap utuh di `INPUT TRANSAKSI` dan
+`KKG Transaksi`, dan bisa dibuka langsung dari Sheet seperti biasa.
