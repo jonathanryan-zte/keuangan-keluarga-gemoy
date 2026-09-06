@@ -102,6 +102,10 @@ const ctx = {
       return Array.from(b).map((v) => (v > 127 ? v - 256 : v));   // seperti byte[] Java
     },
     formatDate: (d, tz, pola) => {
+      // Apps Script melempar galat kalau zonanya tidak dikenal. Intl melakukan
+      // hal yang sama, jadi penjaga zona di zona_() benar-benar teruji di sini
+      // dan bukan cuma teruji terhadap tiruan yang serba menerima.
+      new Intl.DateTimeFormat('en', { timeZone: tz });
       const iso = d.toISOString();
       if (pola === 'yyyy-MM-dd') return iso.slice(0, 10);
       if (pola === 'yyyy-MM') return iso.slice(0, 7);
@@ -112,6 +116,8 @@ const ctx = {
     computeHmacSha256Signature: (p, k) => Array.from(crypto.createHmac('sha256', k).update(p).digest())
   },
   SpreadsheetApp: { getActiveSpreadsheet: () => buku },
+  // Zona proyek skrip (appsscript.json), bukan zona spreadsheet — lihat zona_().
+  Session: { getScriptTimeZone: () => 'Asia/Jakarta' },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   CacheService: { getScriptCache: () => ({ get: () => null, put() {}, remove() {} }) },
   Date: class extends Date {
@@ -244,6 +250,22 @@ function ringkasBulan(bulan) {
     sisa: baris.sisa
   };
 }
+
+console.log('\n— zona waktu tidak diambil dari spreadsheet —');
+pasangBukuBaru();
+// Spreadsheet hasil konversi membawa zona asalnya. Kalau zona_() mempercayainya,
+// cap tanggal meleset sehari dan bisa mendarat di bulan yang salah.
+buku.getSpreadsheetTimeZone = () => 'America/Los_Angeles';
+cek('memakai zona proyek, bukan zona spreadsheet', ctx.zona_(), 'Asia/Jakarta');
+ctx._zonaTertahan = null;
+ctx.setelPengaturan_('zona_waktu', 'Asia/Makassar');
+ctx._zonaTertahan = null;
+cek('baris zona_waktu di KKG Pengaturan menang', ctx.zona_(), 'Asia/Makassar');
+ctx._zonaTertahan = null;
+ctx.setelPengaturan_('zona_waktu', 'Zona/Salah-Ketik');
+ctx._zonaTertahan = null;
+cek('zona salah ketik jatuh ke zona proyek', ctx.zona_(), 'Asia/Jakarta');
+ctx._zonaTertahan = null;
 
 console.log('\n— membaca INPUT TRANSAKSI apa adanya —');
 pasangBukuBaru();

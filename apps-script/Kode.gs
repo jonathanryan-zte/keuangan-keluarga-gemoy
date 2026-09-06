@@ -129,8 +129,34 @@ function ss_() {
   return SpreadsheetApp.getActiveSpreadsheet();
 }
 
+/**
+ * Zona waktu yang dipakai untuk semua cap tanggal.
+ *
+ * Sengaja TIDAK memakai getSpreadsheetTimeZone(). Spreadsheet ini hasil konversi
+ * dari berkas Excel, dan konversinya membawa zona waktu asalnya —
+ * America/Los_Angeles, bukan Asia/Jakarta. Akibatnya diam: transaksi yang
+ * dicatat jam 10 pagi di Surabaya tercatat bertanggal kemarin, dan kalau
+ * kebetulan tanggal 1, ia mendarat di baris bulan yang salah di REKAP BULANAN.
+ * Tidak ada yang berbunyi; angkanya cuma pindah bulan.
+ *
+ * Urutannya: baris `zona_waktu` di KKG Pengaturan, lalu zona proyek skrip ini
+ * (appsscript.json), baru Asia/Jakarta sebagai jaring terakhir.
+ */
+var _zonaTertahan = null;
+
 function zona_() {
-  return ss_().getSpreadsheetTimeZone() || 'Asia/Jakarta';
+  if (_zonaTertahan) return _zonaTertahan;
+  var pilih = '';
+  try {
+    pilih = String(pengaturan_().zona_waktu || '').trim();
+    // Zona yang salah ketik membuat formatDate melempar galat di tempat yang
+    // jauh dari sebabnya. Diuji sekali di sini, selagi sebabnya masih dekat.
+    if (pilih) Utilities.formatDate(new Date(), pilih, 'yyyy-MM-dd');
+  } catch (e) {
+    pilih = '';
+  }
+  _zonaTertahan = pilih || Session.getScriptTimeZone() || 'Asia/Jakarta';
+  return _zonaTertahan;
 }
 
 /** Ambil tab milik aplikasi, buat kalau belum ada, dan pastikan headernya benar. */
