@@ -119,8 +119,8 @@ function rapikan(teks) {
 
 /**
  * Riwayat dipakai lebih dulu supaya aplikasi ikut kebiasaan Ryan: kalau
- * "Bravo" selama ini dicatat sebagai Pangan, tebakan berikutnya juga Pangan
- * walau kata kuncinya tidak cocok.
+ * "Bravo" selama ini dicatat sebagai Bahan Makanan, tebakan berikutnya juga
+ * Bahan Makanan walau kata kuncinya tidak cocok.
  */
 export function tebakKategori(item, riwayat) {
   const teks = String(item || '').toLowerCase().trim();
