@@ -209,6 +209,7 @@ tidak bisa dilakukan Apps Script.
 | Perubahan kode `.gs` tidak terasa | Belum Deploy ulang sebagai **New version** |
 | Menekan Run tapi yang jalan fungsi lain | Pemilih fungsi di toolbar kadang cuma berubah tulisannya tanpa benar-benar ganti pilihan. Cara paling aman: klik dulu berkas yang memuat fungsinya di panel Files, lalu **cek riwayat di menu Executions** (ikon jam di kiri) untuk memastikan nama fungsi yang benar-benar dijalankan — jangan cuma percaya tulisan "Execution completed" |
 | Tab `KKG Ringkasan` tertinggal | Jalankan `segarkanRingkasan`, atau menu **KKG → Segarkan Ringkasan** |
+| Aplikasi menyapa "Alamatnya sudah pindah" | Wajar sekali, setelah pindah ke Sheet baru. HP itu masih menyimpan alamat `/exec` yang lama. Tempel alamat baru sekali, lalu masuk dengan PIN |
 | Baris yang baru diketik di Sheet tidak muncul di aplikasi | Muat ulang aplikasinya. Kalau tetap tidak muncul, periksa apakah kolom Keterangan **dan** Nominal-nya sama-sama kosong — baris seperti itu dianggap baris siap-isi dan sengaja dilewati |
 | Angka di aplikasi lebih besar daripada `REKAP BULANAN` | Wajar selama `tab_tulis` masih `KKG Transaksi`. Selisihnya persis isi tab `KKG Transaksi`, karena rumus REKAP cuma membaca `INPUT TRANSAKSI`. Lihat langkah 2 |
 | Tombol Ubah/Hapus tidak ada di sebuah transaksi | Baris itu tinggal di `INPUT TRANSAKSI`, jadi hanya bisa diubah dari Google Sheets. Kalau ingin aplikasi ikut mengelolanya, ganti `tab_tulis` (langkah 2) |
