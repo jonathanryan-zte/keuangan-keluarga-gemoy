@@ -1,34 +1,48 @@
 // Keadaan aplikasi + semua hitungan turunan.
 // Satu tempat, supaya angka di dashboard, anggaran, dan laporan tidak pernah
 // berbeda gara-gara dihitung dua kali dengan cara berbeda.
+//
+// Rumusnya meniru `REKAP BULANAN` di spreadsheet persis: pemasukan dijumlah
+// dari Jenis, empat pos dijumlah dari Kelompok, dan sisa = pemasukan dikurangi
+// keempat pos. Apa pun yang berkelompok `Transfer / Tidak dihitung` tidak ikut
+// — dan justru kelompok itulah yang dipakai baris pemasukan, jadi uang masuk
+// tidak pernah terhitung dua kali.
 
 import { lokal } from './simpanan.js';
 import { bulanIni, hariIni, jumlahHari, geserBulan } from './rupiah.js';
 
 export const PENANDA_RUTIN = '#rutin:';
 
+export const NETRAL = 'Transfer / Tidak dihitung';
+export const POS = ['Harian 40%', 'Saving 30%', 'Perpuluhan/Sosial 10%', 'Kegiatan Luar 20%'];
+
 export const st = {
   siap: false,
   profil: {
-    persen: { perpuluhan: 10, saving: 30, entertain: 20 },
-    basisPersenKategori: ['Gaji Pokok', 'Gaji BRU', 'Tunjangan', 'Uang Makan'],
-    kategori: {
-      PEMASUKAN: ['Gaji Pokok', 'Gaji BRU', 'Tunjangan', 'Uang Makan', 'Gaji Ryan',
-                  'Fee & Honor', 'THR & Bonus', 'Cicilan Masuk', 'Lainnya'],
-      TETAP: ['Arisan', 'Rumah', 'Utilitas', 'Langganan', 'Transport', 'Cicilan',
-              'Keluarga', 'Kartu Kredit', 'Uang Makan'],
-      RUMAH_TANGGA: ['Pangan', 'Sandang', 'Papan', 'Hobi', 'Gift', 'Travelling',
-                     'Kesehatan', 'Lainnya']
+    // Bawaan ini cuma dipakai sebelum panggilan pertama ke Sheet berhasil —
+    // isinya disalin dari tab PILIHAN supaya form tetap bisa dipakai saat
+    // aplikasi dibuka pertama kali tanpa sinyal.
+    pilihan: {
+      jenis: ['Pemasukan', 'Pengeluaran', 'Alokasi Tujuan', 'Transfer'],
+      kelompok: POS.concat([NETRAL]),
+      bayarPakai: ['BCA Suami', 'BCA Istri', 'Cash', 'QRIS/E-Wallet', 'Kartu Kredit',
+                   'Rekening Saving', 'Investasi', 'Lainnya'],
+      milik: ['Suami', 'Istri', 'Bersama']
     },
+    pos: POS,
+    kelompokNetral: NETRAL,
+    kategori: [],
     // Kategori yang disisihkan. Tidak muncul lagi sebagai pilihan, tapi
     // namanya tetap dikenali supaya transaksi lama tidak jadi yatim.
-    kategoriArsip: { PEMASUKAN: [], TETAP: [], RUMAH_TANGGA: [] },
+    kategoriArsip: [],
+    kategoriKelompok: {},
+    target: { pos: { 'Harian 40%': 40, 'Saving 30%': 30, 'Perpuluhan/Sosial 10%': 10, 'Kegiatan Luar 20%': 20 }, rupiah: [] },
+    tabTulis: 'KKG Transaksi',
     vapidPublik: ''
   },
   transaksi: [],
   rutin: [],
   anggaran: [],
-  saving: [],
   belanja: [],
   bulan: bulanIni(),
   layar: 'beranda',
@@ -45,8 +59,7 @@ export function muatCache() {
   if (!c) return false;
   Object.assign(st, {
     transaksi: c.transaksi || [], rutin: c.rutin || [],
-    anggaran: c.anggaran || [], saving: c.saving || [],
-    belanja: c.belanja || [],
+    anggaran: c.anggaran || [], belanja: c.belanja || [],
     profil: c.profil || st.profil
   });
   return true;
@@ -55,7 +68,7 @@ export function muatCache() {
 export function simpanCache() {
   lokal.simpan('cache', {
     transaksi: st.transaksi, rutin: st.rutin,
-    anggaran: st.anggaran, saving: st.saving, belanja: st.belanja,
+    anggaran: st.anggaran, belanja: st.belanja,
     profil: st.profil
   });
 }
@@ -64,12 +77,12 @@ export function terapkanMuatan(d) {
   st.transaksi = d.transaksi || [];
   st.rutin = d.rutin || [];
   st.anggaran = d.anggaran || [];
-  st.saving = d.saving || [];
   st.belanja = d.belanja || [];
   if (d.profil) {
     st.profil = {
       ...st.profil, ...d.profil,
-      kategoriArsip: { ...st.profil.kategoriArsip, ...(d.profil.kategoriArsip || {}) }
+      pilihan: { ...st.profil.pilihan, ...(d.profil.pilihan || {}) },
+      target: { ...st.profil.target, ...(d.profil.target || {}) }
     };
   }
   st.siap = true;
@@ -106,43 +119,73 @@ export function transaksiBulan(bulan = st.bulan) {
   return st.transaksi.filter((t) => t.bulan === bulan);
 }
 
+/** Pos-pos yang benar-benar dihitung. Datang dari Sheet, dengan bawaan lokal. */
+export function daftarPos() {
+  return st.profil.pos?.length ? st.profil.pos : POS;
+}
+
+export function netral() {
+  return st.profil.kelompokNetral || NETRAL;
+}
+
 export function ringkas(bulan = st.bulan) {
-  const basis = new Set(st.profil.basisPersenKategori);
+  const pos = daftarPos();
   const r = {
-    bulan, pemasukan: 0, tetap: 0, rumahTangga: 0, basis: 0,
-    wajib: 0, keinginan: 0,        // seluruh pengeluaran
-    rtWajib: 0, rtKeinginan: 0,    // khusus rumah tangga
+    bulan, pemasukan: 0, totalKeluar: 0, sisa: 0,
+    pos: {},
+    wajib: 0, keinginan: 0,                // seluruh pengeluaran empat pos
+    harianWajib: 0, harianKeinginan: 0,    // khusus pos Harian
     jumlah: 0
   };
+  pos.forEach((k) => { r.pos[k] = 0; });
+
   for (const t of transaksiBulan(bulan)) {
     r.jumlah++;
-    if (t.jenis === 'PEMASUKAN') {
-      r.pemasukan += t.nominal;
-      if (basis.has(t.kategori)) r.basis += t.nominal;
-    } else {
-      const keinginan = t.sifat === 'KEINGINAN';
-      if (t.jenis === 'TETAP') {
-        r.tetap += t.nominal;
-      } else {
-        r.rumahTangga += t.nominal;
-        if (keinginan) r.rtKeinginan += t.nominal; else r.rtWajib += t.nominal;
-      }
-      if (keinginan) r.keinginan += t.nominal; else r.wajib += t.nominal;
+    if (t.jenis === 'Pemasukan') r.pemasukan += t.nominal;
+    if (r.pos[t.kelompok] === undefined) continue;
+    r.pos[t.kelompok] += t.nominal;
+    const keinginan = t.sifat === 'KEINGINAN';
+    if (keinginan) r.keinginan += t.nominal; else r.wajib += t.nominal;
+    if (t.kelompok === pos[0]) {
+      if (keinginan) r.harianKeinginan += t.nominal; else r.harianWajib += t.nominal;
     }
   }
-  const p = st.profil.persen;
-  r.pengeluaran = r.tetap + r.rumahTangga;
-  r.sisa = r.pemasukan - r.pengeluaran;
-  r.perpuluhan = r.basis * (p.perpuluhan / 100);
-  r.saving = r.basis * (p.saving / 100);
-  r.entertain = r.basis * (p.entertain / 100);
+
+  pos.forEach((k) => { r.totalKeluar += r.pos[k]; });
+  r.sisa = r.pemasukan - r.totalKeluar;
+  r.harian = r.pos[pos[0]] || 0;
   return r;
 }
 
-export function perKategori(bulan = st.bulan, jenis = 'RUMAH_TANGGA') {
+/** Target rupiah tiap pos bulan ini: persen dari TARGET × pemasukan bulan itu. */
+export function targetPos(bulan = st.bulan) {
+  const r = ringkas(bulan);
+  const persen = st.profil.target?.pos || {};
+  const out = {};
+  daftarPos().forEach((k) => {
+    out[k] = {
+      kelompok: k,
+      persen: persen[k] ?? persenDariNama(k),
+      target: r.pemasukan * ((persen[k] ?? persenDariNama(k)) / 100),
+      terpakai: r.pos[k] || 0
+    };
+    out[k].sisa = out[k].target - out[k].terpakai;
+    out[k].bagian = out[k].target ? (out[k].terpakai / out[k].target) * 100 : null;
+  });
+  return out;
+}
+
+/** Persen yang sudah tertulis di nama kelompoknya sendiri: 'Saving 30%' → 30. */
+export function persenDariNama(kelompok) {
+  const m = String(kelompok).match(/(\d+)\s*%/);
+  return m ? Number(m[1]) : 0;
+}
+
+export function perKategori(bulan = st.bulan, kelompok = null) {
+  const pos = daftarPos();
   const peta = new Map();
   for (const t of transaksiBulan(bulan)) {
-    if (t.jenis !== jenis) continue;
+    if (kelompok ? t.kelompok !== kelompok : pos.indexOf(t.kelompok) < 0) continue;
     const k = t.kategori || 'Lainnya';
     peta.set(k, (peta.get(k) || 0) + t.nominal);
   }
@@ -152,18 +195,18 @@ export function perKategori(bulan = st.bulan, jenis = 'RUMAH_TANGGA') {
 }
 
 /**
- * Laju belanja harian & proyeksi. Hanya menghitung pengeluaran rumah tangga —
- * tagihan tetap sudah punya jadwalnya sendiri dan akan membuat rata-rata
- * harian melompat tidak wajar di awal bulan.
+ * Laju belanja harian & proyeksi. Hanya menghitung pos harian — alokasi saving,
+ * perpuluhan, dan kegiatan luar biasanya disetor sekali di awal bulan dan akan
+ * membuat rata-rata harian melompat tidak wajar.
  */
 export function laju(bulan = st.bulan) {
   const hari = jumlahHari(bulan);
   const iniBulanBerjalan = bulan === bulanIni();
   const hariBerjalan = iniBulanBerjalan ? Number(hariIni().slice(8)) : hari;
   const r = ringkas(bulan);
-  const rata = hariBerjalan ? r.rumahTangga / hariBerjalan : 0;
+  const rata = hariBerjalan ? r.harian / hariBerjalan : 0;
   const sisaHari = Math.max(hari - hariBerjalan, 0);
-  const perkiraanAkhir = r.rumahTangga + rata * sisaHari;
+  const perkiraanAkhir = r.harian + rata * sisaHari;
 
   // "Uang aman sampai tanggal berapa" — sisa uang dibagi laju harian.
   let amanSampai = null;
@@ -175,36 +218,56 @@ export function laju(bulan = st.bulan) {
   return { hari, hariBerjalan, sisaHari, rata, perkiraanAkhir, amanSampai, iniBulanBerjalan };
 }
 
+// -------------------------------------------------------------- anggaran --
+
 /** Bulan bisa tiba sebagai '2026-09' atau tanggal penuh; ambil 7 huruf awal. */
 function bulanSaja(v) {
   return String(v || '').slice(0, 7);
-}
-
-/** Pagu yang masih berlaku — yang sudah disisihkan tidak ikut berhitung. */
-function paguHidup(bulan) {
-  return st.anggaran.filter((a) => bulanSaja(a.bulan) === bulan && !disisihkan(a));
 }
 
 function disisihkan(a) {
   return String(a.status || 'aktif') === 'arsip';
 }
 
-export function anggaranBulan(bulan = st.bulan) {
-  const pakai = new Map(perKategori(bulan).map((x) => [x.kategori, x.nominal]));
-  const arsip = new Set(kategoriDisisihkan('RUMAH_TANGGA'));
-  const pagu = new Map(paguHidup(bulan).map((a) => [a.kategori, a.pagu]));
+/** Pagu yang masih berlaku di satu ruang — yang disisihkan tidak ikut. */
+function paguHidup(bulan, ruang) {
+  return st.anggaran.filter((a) =>
+    bulanSaja(a.bulan) === bulan && String(a.ruang || 'kategori') === ruang && !disisihkan(a));
+}
+
+/**
+ * Pagu rupiah per pos, kalau Ryan memasangnya. Kosong berarti pakai target
+ * persen dari TARGET — itu jalur bawaannya, dan pagu rupiah cuma pengecualian
+ * untuk bulan yang memang direncanakan lain.
+ */
+export function paguPos(bulan = st.bulan) {
+  const peta = new Map(paguHidup(bulan, 'kelompok').map((a) => [a.nama, a.pagu]));
+  return peta;
+}
+
+export function anggaranBulan(bulan = st.bulan, kelompok = null) {
+  const pakai = new Map(perKategori(bulan, kelompok).map((x) => [x.kategori, x.nominal]));
+  const arsip = new Set(kategoriDisisihkan());
+  const pagu = new Map(paguHidup(bulan, 'kategori').map((a) => [a.nama, a.pagu]));
   // Kalau bulan ini belum punya pagu, pakai pagu bulan terakhir yang ada —
   // kecuali kategori yang sejak itu sudah disisihkan. Mewariskan pagu kategori
   // yang sudah ditinggalkan sama saja menghidupkannya diam-diam.
   if (!pagu.size) {
-    const bulanPagu = [...new Set(st.anggaran.filter((a) => !disisihkan(a)).map((a) => bulanSaja(a.bulan)))]
+    const bulanPagu = [...new Set(st.anggaran
+      .filter((a) => String(a.ruang || 'kategori') === 'kategori' && !disisihkan(a))
+      .map((a) => bulanSaja(a.bulan)))]
       .filter((b) => b && b < bulan).sort().pop();
     if (bulanPagu) {
-      paguHidup(bulanPagu).forEach((a) => { if (!arsip.has(a.kategori)) pagu.set(a.kategori, a.pagu); });
+      paguHidup(bulanPagu, 'kategori').forEach((a) => {
+        if (!arsip.has(a.nama)) pagu.set(a.nama, a.pagu);
+      });
     }
   }
   const kategori = new Set([...pagu.keys(), ...pakai.keys()]);
   return [...kategori]
+    // Yang dipagu tapi bukan milik kelompok yang sedang dilihat tidak perlu
+    // ikut nimbrung; kalau tidak, satu pagu muncul di keempat kartu pos.
+    .filter((k) => !kelompok || pakai.has(k) || kelompokKategori(k) === kelompok)
     // Kategori yang sudah disisihkan dan tidak dipakai bulan ini tidak perlu
     // menuh-menuhi layar. Kalau masih ada belanjanya, tetap ditampilkan —
     // angka di layar Anggaran harus selalu sama dengan angka di Beranda.
@@ -213,7 +276,7 @@ export function anggaranBulan(bulan = st.bulan) {
       const p = pagu.get(k) || 0;
       const t = pakai.get(k) || 0;
       return {
-        kategori: k, pagu: p, terpakai: t,
+        kategori: k, pagu: p, terpakai: t, kelompok: kelompokKategori(k),
         persen: p ? (t / p) * 100 : null, arsip: arsip.has(k)
       };
     })
@@ -224,23 +287,53 @@ export function anggaranBulan(bulan = st.bulan) {
 /** Pagu bulan ini yang pernah ada tapi sudah disisihkan — riwayatnya. */
 export function paguDisisihkan(bulan = st.bulan) {
   return st.anggaran
-    .filter((a) => bulanSaja(a.bulan) === bulan && disisihkan(a))
-    .map((a) => ({ kategori: a.kategori, pagu: a.pagu }))
+    .filter((a) => bulanSaja(a.bulan) === bulan && disisihkan(a) &&
+                   String(a.ruang || 'kategori') === 'kategori')
+    .map((a) => ({ kategori: a.nama, pagu: a.pagu }))
     .sort((a, b) => b.pagu - a.pagu);
+}
+
+/** Sisipkan/ganti satu pagu di memori. */
+export function taruhPagu(rekam) {
+  const ruang = rekam.ruang || 'kategori';
+  const i = st.anggaran.findIndex(
+    (a) => bulanSaja(a.bulan) === rekam.bulan &&
+           String(a.ruang || 'kategori') === ruang && a.nama === rekam.nama);
+  const isi = { ...rekam, ruang, status: 'aktif' };
+  if (i >= 0) st.anggaran[i] = isi; else st.anggaran.push(isi);
+  simpanCache();
 }
 
 // ---------------------------------------------------------------- kategori --
 //
-// Daftar kategori datang dari tab `Kategori` di Sheet. Yang disisihkan tidak
-// dibuang, hanya dipindah ke `kategoriArsip` — jadi transaksi lama tetap punya
-// nama yang dikenali, dan kategorinya bisa dipakai lagi kapan saja.
+// Daftar kategori datang dari kolom Kategori tab `PILIHAN`, ditambah kategori
+// milik aplikasi di tab `KKG Kategori`. Yang disisihkan tidak dibuang, hanya
+// dipindah ke `kategoriArsip` — jadi transaksi lama tetap punya nama yang
+// dikenali, dan kategorinya bisa dipakai lagi kapan saja.
 
-export function kategoriAktif(jenis) {
-  return st.profil.kategori?.[jenis] || [];
+export function kategoriAktif() {
+  return st.profil.kategori || [];
 }
 
-export function kategoriDisisihkan(jenis) {
-  return st.profil.kategoriArsip?.[jenis] || [];
+export function kategoriDisisihkan() {
+  return st.profil.kategoriArsip || [];
+}
+
+/** Kelompok yang disarankan untuk sebuah kategori, kalau pernah dicatat. */
+export function kelompokKategori(nama) {
+  const dari = st.profil.kategoriKelompok || {};
+  if (dari[nama]) return dari[nama];
+  // Belum ada sarannya di Sheet: pakai kelompok yang paling sering dipakai
+  // kategori ini di riwayat sendiri. Lebih tepat daripada menebak dari nama.
+  const hitung = new Map();
+  for (const t of st.transaksi) {
+    if (t.kategori !== nama || !t.kelompok || t.kelompok === netral()) continue;
+    hitung.set(t.kelompok, (hitung.get(t.kelompok) || 0) + 1);
+  }
+  let juara = '';
+  let n = 0;
+  hitung.forEach((v, k) => { if (v > n) { n = v; juara = k; } });
+  return juara;
 }
 
 /**
@@ -248,25 +341,19 @@ export function kategoriDisisihkan(jenis) {
  * walau sudah disisihkan — kalau tidak, mengedit transaksi lama diam-diam
  * mengosongkan kategorinya.
  */
-export function pilihanKategori(jenis, terpilih) {
-  const aktif = kategoriAktif(jenis);
+export function pilihanKategori(terpilih) {
+  const aktif = kategoriAktif();
   return terpilih && !aktif.includes(terpilih) ? [...aktif, terpilih] : aktif;
 }
 
-/** Kategori ini pernah ada di jenis tersebut — aktif maupun sudah disisihkan. */
-export function kategoriDikenal(jenis, nama) {
-  return kategoriAktif(jenis).includes(nama) || kategoriDisisihkan(jenis).includes(nama);
+/** Kategori ini pernah ada — aktif maupun sudah disisihkan. */
+export function kategoriDikenal(nama) {
+  return kategoriAktif().includes(nama) || kategoriDisisihkan().includes(nama);
 }
 
 /** Berapa transaksi yang masih memakai kategori ini — untuk peringatan. */
-export function pemakaiKategori(jenis, nama) {
-  return st.transaksi.filter((t) => t.jenis === jenis && t.kategori === nama).length;
-}
-
-function daftarProfil(kunci, jenis) {
-  if (!st.profil[kunci]) st.profil[kunci] = {};
-  if (!st.profil[kunci][jenis]) st.profil[kunci][jenis] = [];
-  return st.profil[kunci][jenis];
+export function pemakaiKategori(nama) {
+  return st.transaksi.filter((t) => t.kategori === nama).length;
 }
 
 function buang(daftar, nama) {
@@ -278,32 +365,85 @@ function buang(daftar, nama) {
  * Ubah daftar kategori di memori lebih dulu, kirim ke Sheet belakangan.
  * Layar langsung berubah walau sinyal sedang mati.
  */
-export function pakaiKategori(jenis, nama) {
-  buang(daftarProfil('kategoriArsip', jenis), nama);
-  const aktif = daftarProfil('kategori', jenis);
-  if (!aktif.includes(nama)) aktif.push(nama);
+export function pakaiKategori(nama, kelompok) {
+  if (!st.profil.kategoriArsip) st.profil.kategoriArsip = [];
+  if (!st.profil.kategori) st.profil.kategori = [];
+  buang(st.profil.kategoriArsip, nama);
+  if (!st.profil.kategori.includes(nama)) st.profil.kategori.push(nama);
+  if (kelompok) {
+    if (!st.profil.kategoriKelompok) st.profil.kategoriKelompok = {};
+    st.profil.kategoriKelompok[nama] = kelompok;
+  }
   simpanCache();
 }
 
-export function sisihkanKategori(jenis, nama, sejak = st.bulan) {
-  buang(daftarProfil('kategori', jenis), nama);
-  const arsip = daftarProfil('kategoriArsip', jenis);
-  if (!arsip.includes(nama)) arsip.push(nama);
+export function sisihkanKategori(nama, sejak = st.bulan) {
+  if (!st.profil.kategoriArsip) st.profil.kategoriArsip = [];
+  buang(st.profil.kategori, nama);
+  if (!st.profil.kategoriArsip.includes(nama)) st.profil.kategoriArsip.push(nama);
   // Pagu bulan berjalan dan sesudahnya ikut disisihkan; bulan yang sudah lewat
   // dibiarkan utuh sebagai riwayat. Aturannya sama persis dengan Apps Script.
   st.anggaran.forEach((a) => {
-    if (a.kategori === nama && bulanSaja(a.bulan) >= sejak) a.status = 'arsip';
+    if (String(a.ruang || 'kategori') !== 'kategori') return;
+    if (a.nama === nama && bulanSaja(a.bulan) >= sejak) a.status = 'arsip';
   });
   simpanCache();
 }
 
-/** Sisipkan/ganti satu pagu di memori. */
-export function taruhPagu(rekam) {
-  const i = st.anggaran.findIndex(
-    (a) => bulanSaja(a.bulan) === rekam.bulan && a.kategori === rekam.kategori);
-  const isi = { ...rekam, status: 'aktif' };
-  if (i >= 0) st.anggaran[i] = isi; else st.anggaran.push(isi);
-  simpanCache();
+// ------------------------------------------------------------------ target --
+
+/**
+ * Nama di tab `TARGET` dan nama kategori di `PILIHAN` memang tidak sama —
+ * "Utang kakak suami" vs "Hutang Kakak Suami", "Renovasi atap + kitchen set"
+ * vs "Renovasi Atap & Kitchen Set". Jembatannya ditulis di sini, terbuka,
+ * daripada dipaksakan lewat pencocokan kira-kira yang diam-diam meleset.
+ */
+const TARGET_KE_KATEGORI = {
+  'renovasi atap + kitchen set': 'Renovasi Atap & Kitchen Set',
+  'utang kakak suami': 'Hutang Kakak Suami',
+  'trip luar kota': 'Keluar Kota Bulanan',
+  'travel luar negeri': 'Luar Negeri Tahunan',
+  'kpr tahap 1': 'KPR',
+  'kpr tahap 2': 'KPR'
+};
+
+/** Total yang pernah dialokasikan ke sebuah kategori, sepanjang riwayat. */
+export function terkumpulKategori(nama) {
+  return st.transaksi
+    .filter((t) => t.kategori === nama && t.kelompok !== netral())
+    .reduce((n, t) => n + t.nominal, 0);
+}
+
+/** Total yang pernah masuk sebuah pos, sepanjang riwayat. */
+export function terkumpulPos(kelompok) {
+  return st.transaksi
+    .filter((t) => t.kelompok === kelompok)
+    .reduce((n, t) => n + t.nominal, 0);
+}
+
+/**
+ * Target rupiah dari tab `TARGET`, lengkap dengan berapa yang sudah terkumpul.
+ * Target bulanan dihitung dari bulan yang sedang dilihat, target total dari
+ * seluruh riwayat — sama seperti maksud kolomnya di DASHBOARD.
+ */
+export function progresTarget(bulan = st.bulan) {
+  return (st.profil.target?.rupiah || []).map((t) => {
+    const kategori = TARGET_KE_KATEGORI[String(t.nama).toLowerCase()] || null;
+    const bulanan = /bulan/i.test(t.periode || '');
+    let terkumpul = 0;
+    if (kategori) {
+      terkumpul = bulanan
+        ? transaksiBulan(bulan).filter((x) => x.kategori === kategori)
+            .reduce((n, x) => n + x.nominal, 0)
+        : terkumpulKategori(kategori);
+    }
+    return {
+      nama: t.nama, nilai: t.nilai, periode: t.periode, keterangan: t.keterangan,
+      kategori, bulanan, terkumpul,
+      sisa: Math.max(t.nilai - terkumpul, 0),
+      persen: t.nilai ? Math.min((terkumpul / t.nilai) * 100, 100) : 0
+    };
+  });
 }
 
 // -------------------------------------------------------------------- rutin --
@@ -362,12 +502,6 @@ export function jatuhTempoDekat(hari = 7) {
     .sort((a, b) => a.jatuhTempo.localeCompare(b.jatuhTempo));
 }
 
-/** Saldo saving berjalan terakhir. */
-export function saldoSaving() {
-  if (!st.saving.length) return 0;
-  return st.saving[st.saving.length - 1].saldo || 0;
-}
-
 // ------------------------------------------------------------------ belanja --
 //
 // Satu barang = satu baris, selamanya. Mencentang tidak membuang barisnya,
@@ -422,16 +556,22 @@ export function cariBelanja(nama) {
   return st.belanja.find((b) => b.nama.trim().toLowerCase() === k) || null;
 }
 
-/** Item yang paling sering dipakai, untuk saran di form input. */
+/** Keterangan yang paling sering dipakai, untuk saran di form input. */
 export function itemSering(jenis, batas = 12) {
   const peta = new Map();
   for (const t of st.transaksi) {
     if (jenis && t.jenis !== jenis) continue;
-    if (!t.item) continue;
-    const k = t.item.trim();
-    const p = peta.get(k) || { item: k, n: 0, kategori: t.kategori, nominal: t.nominal, terakhir: t.tanggal };
+    if (!t.keterangan) continue;
+    const k = t.keterangan.trim();
+    const p = peta.get(k) || {
+      item: k, n: 0, kategori: t.kategori, kelompok: t.kelompok,
+      nominal: t.nominal, terakhir: t.tanggal
+    };
     p.n++;
-    if (t.tanggal > p.terakhir) { p.terakhir = t.tanggal; p.kategori = t.kategori; p.nominal = t.nominal; }
+    if (t.tanggal > p.terakhir) {
+      p.terakhir = t.tanggal; p.kategori = t.kategori;
+      p.kelompok = t.kelompok; p.nominal = t.nominal;
+    }
     peta.set(k, p);
   }
   return [...peta.values()]

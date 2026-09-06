@@ -17,14 +17,17 @@ function penandaRutin_(id) {
 /** Status seluruh tagihan/cicilan untuk satu bulan 'yyyy-MM'. */
 function statusRutinBulan_(bulan) {
   var terbayar = {};
-  baca_(TAB.TRANSAKSI).forEach(function (t) {
-    if (String(t.status || 'aktif') === 'dihapus') return;
-    if (bulanDari_(t.tanggal) !== bulan) return;
+  // Sengaja lewat semuaTransaksi_(), bukan hanya tab aplikasi: sebuah tagihan
+  // bisa saja dibayar dan dicatat tangan di INPUT TRANSAKSI, lengkap dengan
+  // penandanya di kolom Catatan. Kalau yang dibaca cuma tab aplikasi,
+  // pengingat pagi akan menagih sesuatu yang sudah dibayar.
+  semuaTransaksi_().forEach(function (t) {
+    if (t.bulan !== bulan) return;
     var catatan = String(t.catatan || '');
     var pos = catatan.indexOf(PENANDA_RUTIN);
     if (pos < 0) return;
     var id = catatan.substring(pos + PENANDA_RUTIN.length).split(/[\s,;]/)[0];
-    terbayar[id] = { id: String(t.id), nominal: angka_(t.nominal), tanggal: keTanggal_(t.tanggal) };
+    terbayar[id] = { id: String(t.id), nominal: t.nominal, tanggal: t.tanggal };
   });
 
   return baca_(TAB.RUTIN).map(bentukRutin_).filter(function (r) {
@@ -86,57 +89,67 @@ function tanggalJatuhTempo_(bulan, hari) {
 }
 
 /**
- * Isi tab `Rutin` dengan tagihan & cicilan yang terbaca dari Sheet lama.
- * Dijalankan sekali saat pemasangan; aman diulang karena mencocokkan nama.
+ * Isi tab `KKG Rutin` dengan tagihan & cicilan yang sudah rutin tiap bulan.
+ *
+ * Nominal dan kategorinya diambil dari baris September 2026 di
+ * `INPUT TRANSAKSI` — jadi ini bukan tebakan, melainkan apa yang benar-benar
+ * dibayar. Dijalankan sekali saat pemasangan; aman diulang karena mencocokkan
+ * nama, dan seluruh angkanya memang untuk diubah sendiri dari aplikasi.
  */
 function isiRutinAwal() {
   var sudahAda = {};
   baca_(TAB.RUTIN).forEach(function (r) { sudahAda[String(r.nama).toLowerCase()] = true; });
 
+  var P = JENIS.PENGELUARAN;
+  var A = JENIS.ALOKASI;
+
+  // [nama, jenis, kelompok, kategori, nominal, hari jatuh tempo]
   var tagihan = [
-    ['Arisan Kantor',            'Arisan',        1000000, 1],
-    ['Arisan Cappadocia',        'Arisan',        1500000, 1],
-    ['Iuran Perumahan',          'Rumah',          295000, 5],
-    ['Iuran Gizi',               'Keluarga',        70000, 5],
-    ['Iuran Mitra Wonokoyo',     'Keluarga',       130000, 5],
-    ['KPR Rumah Menganti',       'Rumah',         3200000, 10],
-    ['Internet Rumah Menganti',  'Utilitas',       295260, 10],
-    ['Internet',                 'Utilitas',       288400, 15],
-    ['PDAM',                     'Utilitas',        52500, 15],
-    ['Listrik',                  'Utilitas',       990000, 15],
-    ['Bensin',                   'Transport',     1200000, 1],
-    ['Telkomsel',                'Utilitas',        88800, 20],
-    ['iCloud',                   'Langganan',       52000, 20],
-    ['Spotify',                  'Langganan',      104900, 20],
-    ['Netflix Tere',             'Langganan',       37200, 20],
-    ['Kasih Papa Mama Ryan',     'Keluarga',       370000, 1],
-    ['Hutang ke Mas Johan',      'Keluarga',      1000000, 1],
-    ['Uang Makan Ryan',          'Uang Makan',     700000, 1]
+    ['Arisan',                  A, KELOMPOK.SAVING, 'Investasi',                  2500000,  1],
+    ['Tabungan Bulanan',        A, KELOMPOK.SAVING, 'Investasi',                  7200000,  1],
+    ['Iuran Perumahan Pocan',   P, KELOMPOK.HARIAN, 'Kebutuhan Rumah',             295000,  5],
+    ['Iuran Gizi',              P, KELOMPOK.HARIAN, 'Kebutuhan Rumah',              40000,  5],
+    ['Iuran Mita Wonokoyo',     A, KELOMPOK.SOSIAL, 'Bantuan Orang Tua/Keluarga',  130000,  5],
+    ['Kasih Papa Mama Ryan',    A, KELOMPOK.SOSIAL, 'Bantuan Orang Tua/Keluarga',  370000,  1],
+    ['Internet Rumah Menganti', A, KELOMPOK.SOSIAL, 'Bantuan Orang Tua/Keluarga',  300000, 10],
+    ['KPR',                     P, KELOMPOK.HARIAN, 'KPR',                        2200000, 10],
+    ['Indihome',                P, KELOMPOK.HARIAN, 'Kebutuhan Rumah',             213400, 15],
+    ['PDAM',                    P, KELOMPOK.HARIAN, 'Kebutuhan Rumah',              52500, 15],
+    ['Listrik',                 P, KELOMPOK.HARIAN, 'Listrik',                     990000, 15],
+    ['Bensin',                  P, KELOMPOK.HARIAN, 'BBM/Transportasi',           1200000,  1],
+    ['Telkomsel (HALO)',        P, KELOMPOK.HARIAN, 'Internet/HP',                  97680, 20],
+    ['Icloud',                  P, KELOMPOK.HARIAN, 'Subscription',                 52000, 20],
+    ['Spotify',                 P, KELOMPOK.HARIAN, 'Subscription',                104900, 20],
+    ['Netflix',                 P, KELOMPOK.HARIAN, 'Subscription',                 37200, 20],
+    ['Uang Makan Ryan',         P, KELOMPOK.HARIAN, 'Makan di Luar',               700000,  1],
+    ['Hutang ke Mas Johan',     A, KELOMPOK.SAVING, 'Hutang Rumah',               1000000,  1]
   ];
 
-  // [nama, kategori, nominal per bulan, hari jatuh tempo, total termin, bulan mulai]
+  // [nama, jenis, kelompok, kategori, nominal, hari, total termin, bulan mulai]
   var cicilan = [
-    ['Iphone 16',          'Cicilan', 1229083, 10, 12, '2026-01'],
-    ['Jam Papa Tere',      'Cicilan',  543603, 10,  6, '2026-04'],
-    ['Fitnessworks',       'Cicilan',  560850, 10,  6, '2026-04'],
-    ['Cicilan Service Mobil', 'Cicilan', 292079, 10, 5, '2026-04']
+    ['Cicilan Iphone',        P, KELOMPOK.LUAR,   'Internet/HP',      1229083, 10, 12, '2026-01'],
+    ['Cicilan Gym',           P, KELOMPOK.LUAR,   'Gym/Olahraga',      560850, 10,  6, '2026-04'],
+    ['Cicilan Jam Papa Tere', P, KELOMPOK.LUAR,   'Hadiah',            543603, 10,  6, '2026-04'],
+    ['Cicilan Service Mobil', P, KELOMPOK.HARIAN, 'BBM/Transportasi',  292079, 10,  5, '2026-04']
   ];
 
   var baru = [];
   tagihan.forEach(function (t) {
     if (sudahAda[t[0].toLowerCase()]) return;
     baru.push({
-      id: idBaru_('rtn'), nama: t[0], tipe: 'tagihan', jenis: JENIS.TETAP,
-      kategori: t[1], nominal: t[2], sifat: SIFAT.WAJIB, hari_jatuh_tempo: t[3],
+      id: idBaru_('rtn'), nama: t[0], tipe: 'tagihan', jenis: t[1], kelompok: t[2],
+      kategori: t[3], bayar_pakai: '', milik: 'Bersama', nominal: t[4],
+      sifat: SIFAT.WAJIB, hari_jatuh_tempo: t[5],
       mulai: '', total_termin: '', termin_terbayar: '', aktif: true
     });
   });
   cicilan.forEach(function (c) {
     if (sudahAda[c[0].toLowerCase()]) return;
     baru.push({
-      id: idBaru_('rtn'), nama: c[0], tipe: 'cicilan', jenis: JENIS.TETAP,
-      kategori: c[1], nominal: c[2], sifat: SIFAT.WAJIB, hari_jatuh_tempo: c[3],
-      mulai: c[5], total_termin: c[4], termin_terbayar: 0, aktif: true
+      id: idBaru_('rtn'), nama: c[0], tipe: 'cicilan', jenis: c[1], kelompok: c[2],
+      kategori: c[3], bayar_pakai: '', milik: 'Bersama', nominal: c[4],
+      sifat: SIFAT.WAJIB, hari_jatuh_tempo: c[5],
+      mulai: c[7], total_termin: c[6], termin_terbayar: 0, aktif: true
     });
   });
 

@@ -12,7 +12,7 @@ saat tidak ada sinyal.
 app/            Aplikasi (PWA). Modul ES biasa — tanpa npm, tanpa build.
 apps-script/    Kode Google Apps Script yang menempel di Sheet.
 worker/         Cloudflare Worker pengirim notifikasi push.
-tools/          Alat bantu sekali pakai (uji migrasi, uji push, pembuat logo & kunci).
+tools/          Alat bantu (uji hitungan, uji push, deploy, pembuat logo & kunci).
 ```
 
 ## Cara kerjanya
@@ -25,6 +25,32 @@ HP / laptop  ──POST text/plain + token──>  Apps Script  ──>  Google 
 Sheet tetap jadi sumber kebenaran: apa pun bisa dibuka, diperiksa, dan diedit
 langsung dari Google Sheet seperti biasa. Aplikasi hanya menyimpan salinan
 sementara di HP supaya tetap terbuka saat luring.
+
+Ada dua jenis tab, dan bedanya menentukan seluruh rancangan:
+
+| Tab | Milik | Diperlakukan bagaimana |
+|---|---|---|
+| `INPUT TRANSAKSI`, `PILIHAN`, `TARGET`, `REKAP BULANAN`, `DASHBOARD` | Ryan | **Hanya dibaca.** Dibaca hidup tiap kali aplikasi dibuka — tidak dicermin, tidak disinkronkan. Satu sel diubah di Sheet, angkanya langsung ikut di HP. |
+| `KKG …` | Aplikasi | Tempat transaksi dari HP, anggaran, tagihan rutin, dan daftar belanja disimpan. |
+
+Karena tidak ada salinan, tidak ada yang perlu dirukunkan — dan tidak ada dua
+angka yang bisa berselisih. Itu yang membuat 1.289 baris kode migrasi dan
+sinkron dari sheet lama bisa dihapus seluruhnya.
+
+Ke mana catatan dari HP ditulis diatur satu baris di tab `KKG Pengaturan`:
+
+```
+tab_tulis = KKG Transaksi        transaksi dari HP disimpan terpisah;
+                                 INPUT TRANSAKSI tidak disentuh sama sekali,
+                                 tapi REKAP BULANAN belum melihatnya
+tab_tulis = INPUT TRANSAKSI      catatan dari HP mendarat di tabel yang sama
+                                 dengan isian tangan, jadi REKAP BULANAN dan
+                                 DASHBOARD ikut terisi
+```
+
+Mengubah isi sel itu sudah cukup; tidak ada kode yang perlu di-deploy ulang.
+Sepuluh kolom pertama tab `KKG Transaksi` sengaja disusun persis sama dengan
+`INPUT TRANSAKSI`, jadi menyatukannya kelak cuma soal salin A:J.
 
 Permintaan dikirim sebagai `text/plain`, bukan `application/json`. Itu membuat
 browser memperlakukannya sebagai permintaan sederhana sehingga tidak ada
@@ -46,8 +72,8 @@ seperti di HP.
 
 | Perintah / berkas | Gunanya |
 |---|---|
-| `python3 tools/cek_migrasi.py <berkas.xlsx>` | Menguji algoritma migrasi terhadap salinan Sheet (.xlsx) tanpa menyentuh data asli. Cerminan Python dari `apps-script/Migrasi.gs` — kalau salah satunya diubah, ubah keduanya. |
-| `node tools/uji_sinkron.js` | Menjalankan otak pencocokan `apps-script/Sinkron.gs` dan rekonsiliasi `apps-script/Selisih.gs` di Node dengan Apps Script yang dipalsukan. Jalankan setiap kali salah satunya disentuh. |
+| `node tools/uji_hitung.js` | Menjalankan otak Apps Script di Node dengan spreadsheet yang dipalsukan, memakai baris September 2026 yang sungguhan, lalu mencocokkan hasilnya dengan baris Sep-26 di `REKAP BULANAN`. Jalankan setiap kali `Kode.gs` atau `Ringkasan.gs` disentuh. |
+| `tools/deploy.sh "keterangan"` | Kirim `apps-script/` ke proyek Apps Script, buat versi baru, dan arahkan deployment yang sama ke sana — jadi URL `/exec` di HP tidak berubah. |
 | `tools/uji_push.html` | Uji bolak-balik enkripsi Web Push (RFC 8291) dan tanda tangan VAPID. Butuh server lokal karena memakai modul ES. |
 | `tools/buat_kunci_vapid.html` | Membuat pasangan kunci VAPID untuk notifikasi. Bisa dibuka langsung tanpa server. |
 | `python3 tools/buat_logo.py` | Menggambar ulang logo KKG dari koordinat terhitung. |
@@ -61,10 +87,10 @@ seperti di HP.
   disertai tulisan, karena merah lawan hijau adalah pasangan terburuk bagi buta
   warna merah-hijau. Hijaunya pun digeser ke arah toska agar terbedakan.
 - **Tidak ada tombol yang menghapus data.** Kategori yang tidak dipakai lagi
-  "disisihkan" — barisnya tetap ada di tab `Kategori` dengan status `arsip`,
+  "disisihkan" — barisnya tetap ada di tab `KKG Kategori` dengan status `arsip`,
   transaksi lamanya utuh, pagu bulan-bulan lalu tetap tersimpan, dan tombol
-  "Pakai lagi" selalu tersedia. Transaksi dan mutasi saving pun dihapus lunak
-  dengan cara yang sama.
+  "Pakai lagi" selalu tersedia. Transaksi pun dihapus lunak dengan cara yang
+  sama: barisnya tetap ada, statusnya saja yang berubah.
 - **Mencentang daftar belanja tidak mencatat uang.** Daftar Belanja adalah alat
   bantu di toko, bukan pembukuan: uang keluar sekali di kasir, bukan per barang.
   Mencentang hanya memindahkan barangnya ke "pernah dibeli" dan mencap
@@ -72,28 +98,31 @@ seperti di HP.
   catat-banyak dengan nama barangnya sudah terisi — satu struk jadi satu
   rangkaian catatan, tanpa angka yang dihitung dua kali.
 - **Barang belanja pun tidak pernah dihapus.** Satu barang satu baris di tab
-  `Belanja`, selamanya, lengkap dengan tanggal beli terakhir dan sudah berapa
+  `KKG Belanja`, selamanya, lengkap dengan tanggal beli terakhir dan sudah berapa
   kali dibeli. Itulah yang membuat daftar minggu berikutnya bisa dibuat dengan
   mengetuk, bukan mengetik: sarannya diurutkan dari yang paling lama tidak
   dibeli. Yang tidak ingin disarankan lagi diberi status `arsip`, bukan dibuang.
-- **Daftar kategori punya satu sumber**, yaitu tab `Kategori` di Sheet. Layar
-  Anggaran yang mengubahnya, dan perubahan itu langsung terasa di form catat,
-  saringan Riwayat, tagihan rutin, dan pengingat pagi.
-- **Sheet lama boleh terus dipakai.** Admin masih mengisi tab `Monthly 26`
-  seperti biasa, dan `Sinkron.gs` menariknya tiap subuh. Yang membuatnya aman
-  diulang: setiap baris sumber punya id yang dihitung dari isinya sendiri, jadi
-  baris yang sama selalu dikenali sebagai baris yang sama. Yang sudah
-  dibetulkan lewat aplikasi tidak pernah tertimpa, dan baris yang hilang dari
-  tab lama cuma diberi catatan — tidak dihapus. Tebakan yang tidak cukup yakin
-  tidak dikerjakan diam-diam, tapi dituliskan ke tab `Sinkron Cek` supaya
-  diputuskan manusia.
-- **"Sisa" tidak berarti sama di dua tempat, dan itu dijelaskan, bukan
-  didiamkan.** Di aplikasi, Sisa = pemasukan − tetap − rumah tangga; Perpuluhan
-  / Saving / Entertain adalah angka tersendiri, bukan pengurang. Rumus di sheet
-  lama tidak selalu begitu. `Selisih.gs` menguraikan bedanya sampai nol dan
-  memisahkan sebab yang akan hilang setelah sinkron dari sebab yang memang
-  tidak seharusnya hilang — termasuk menuliskan sisa yang belum terjelaskan
-  apa adanya, alih-alih membulatkannya hilang.
+- **Baris milik sheet tidak bisa diubah dari HP.** Baris yang diketik langsung
+  di `INPUT TRANSAKSI` muncul di aplikasi dengan tombol Ubah dan Hapus yang
+  memang tidak ada, disertai alasannya. Yang tetap bisa disetel dari HP cuma
+  sifat WAJIB/KEINGINAN — sheet baru tidak punya kolom itu, jadi penandanya
+  disimpan terpisah di tab `KKG Tanda`, dikunci pada sidik isi barisnya, bukan
+  nomor barisnya. Menyisipkan baris di tengah Sheet tidak memindahkan penanda
+  ke baris yang salah.
+- **Hitungannya meniru `REKAP BULANAN` persis**: pemasukan dijumlah dari kolom
+  Jenis, empat pos dijumlah dari kolom Kelompok, dan Sisa = pemasukan dikurangi
+  keempat pos. Apa pun berkelompok `Transfer / Tidak dihitung` tidak ikut — dan
+  justru kelompok itulah yang dipakai baris pemasukan, sehingga uang masuk
+  tidak pernah terhitung dua kali. `tools/uji_hitung.js` mengujinya terhadap
+  angka Sep-26 yang tertulis di sheet, bukan terhadap dirinya sendiri.
+- **Persentase empat pos dibaca dari tab `TARGET`, dan tidak bisa diubah dari
+  aplikasi.** Menyediakan dua tempat untuk mengubah angka yang sama adalah cara
+  tercepat membuat keduanya berselisih.
+- **Daftar kategori punya dua sumber yang jelas pembagiannya.** Kolom Kategori
+  di tab `PILIHAN` milik Ryan dan tidak pernah disentuh skrip. Tab
+  `KKG Kategori` hanya menambahi: kategori baru, saran pos untuk sebuah
+  kategori, dan bendera arsip. Menyisihkan kategori dari aplikasi tidak pernah
+  mencoret apa pun di `PILIHAN`.
 - **Tema mengikuti HP**, tanpa tombol ganti tema.
 - **Efek kaca dimatikan otomatis** kalau pengguna menyalakan pengurangan
   transparansi di pengaturan aksesibilitas.

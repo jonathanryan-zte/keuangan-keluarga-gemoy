@@ -2,7 +2,7 @@ import { h, roti, kosongkan, sheet, ikon, konfirmasi } from '../ui.js';
 import { rp, rpSingkat, namaBulan, tanggalPanjang, hariIni } from '../rupiah.js';
 import {
   st, statusRutin, taruhTransaksi, buangTransaksi, umumkan, idTransaksi,
-  pilihanKategori, PENANDA_RUTIN
+  pilihanKategori, daftarPos, netral, PENANDA_RUTIN
 } from '../toko.js';
 import { panggil, kirimTransaksi } from '../api.js';
 
@@ -70,7 +70,7 @@ function barisRutin(s, gambar, tampilkanTermin) {
 }
 
 /**
- * Mencentang tagihan = membuat transaksi TETAP dengan penanda `#rutin:<id>`.
+ * Mencentang tagihan = membuat transaksi dengan penanda `#rutin:<id>`.
  * Tidak ada baris "belum dibayar" yang dibuat lebih dulu, jadi Sheet tetap
  * hanya berisi uang yang benar-benar keluar.
  */
@@ -89,13 +89,17 @@ async function tandai(s, gambar) {
     id: idTransaksi(),
     tanggal: s.jatuhTempo > hariIni() ? hariIni() : s.jatuhTempo,
     bulan: s.bulan,
-    jenis: s.rutin.jenis || 'TETAP',
+    jenis: s.rutin.jenis || 'Pengeluaran',
+    kelompok: s.rutin.kelompok || daftarPos()[0],
     kategori: s.rutin.kategori,
-    item: s.rutin.nama,
+    keterangan: s.rutin.nama,
     nominal: s.rutin.nominal,
+    bayarPakai: s.rutin.bayarPakai || '',
+    milik: s.rutin.milik || 'Bersama',
     sifat: s.rutin.sifat || 'WAJIB',
     catatan: PENANDA_RUTIN + s.rutin.id,
-    sumber: 'rutin'
+    sumber: 'rutin',
+    kunci: false
   };
   taruhTransaksi(t);
   gambar(); umumkan();
@@ -106,7 +110,8 @@ async function tandai(s, gambar) {
 
 function bukaUbahRutin(r, gambar) {
   const f = r ? { ...r } : {
-    id: null, nama: '', tipe: 'tagihan', jenis: 'TETAP', kategori: 'Utilitas',
+    id: null, nama: '', tipe: 'tagihan', jenis: 'Pengeluaran',
+    kelompok: daftarPos()[0], kategori: '', bayarPakai: '', milik: 'Bersama',
     nominal: 0, sifat: 'WAJIB', hariJatuhTempo: 1, mulai: '', totalTermin: 0,
     terminTerbayar: 0, aktif: true
   };
@@ -115,9 +120,21 @@ function bukaUbahRutin(r, gambar) {
       h('input', { type: 'text', value: f.nama, oninput: (e) => { f.nama = e.target.value; } })),
     h('div.isian', h('label', 'Nominal per bulan (Rp)'),
       h('input', { type: 'number', inputmode: 'numeric', value: f.nominal || '', oninput: (e) => { f.nominal = Number(e.target.value) || 0; } })),
+    h('div.isian', h('label', 'Masuk pos mana'),
+      h('div.chip-baris', daftarPos().concat([netral()]).map((k) =>
+        h('button.chip', {
+          type: 'button', kelas: f.kelompok === k ? 'aktif' : '',
+          onclick: (e) => {
+            f.kelompok = k;
+            e.target.parentElement.querySelectorAll('.chip').forEach((c) => c.classList.remove('aktif'));
+            e.target.classList.add('aktif');
+          }
+        }, k))
+      )),
     h('div.isian', h('label', 'Kategori'),
       h('select', { onchange: (e) => { f.kategori = e.target.value; } },
-        pilihanKategori('TETAP', f.kategori).map((k) =>
+        h('option', { value: '', selected: !f.kategori }, 'Pilih kategori…'),
+        pilihanKategori(f.kategori).map((k) =>
           h('option', { value: k, selected: f.kategori === k }, k)))),
     h('div.isian', h('label', 'Tanggal jatuh tempo tiap bulan'),
       h('input', { type: 'number', min: '1', max: '31', value: f.hariJatuhTempo, oninput: (e) => { f.hariJatuhTempo = Number(e.target.value) || 1; } })),

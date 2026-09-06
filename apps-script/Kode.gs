@@ -1,73 +1,120 @@
 /**
  * Keuangan Keluarga Gemoy (KKG) — inti backend.
  *
- * Skrip ini menempel di Spreadsheet keuangan keluarga dan di-deploy sebagai
- * Web App. Aplikasi di GitHub Pages memanggilnya lewat POST ber-Content-Type
- * text/plain — bukan application/json — supaya browser tidak mengirim
- * preflight OPTIONS, yang tidak bisa dijawab Apps Script.
+ * Skrip ini menempel di spreadsheet keuangan keluarga yang baru dan di-deploy
+ * sebagai Web App. Aplikasi di GitHub Pages memanggilnya lewat POST
+ * ber-Content-Type text/plain — bukan application/json — supaya browser tidak
+ * mengirim preflight OPTIONS, yang tidak bisa dijawab Apps Script.
+ *
+ * Dua jenis tab, dan bedanya penting:
+ *
+ *   - Tab bawaan (`INPUT TRANSAKSI`, `PILIHAN`, `TARGET`) milik Ryan. Skrip ini
+ *     hanya MEMBACANYA, hidup, setiap kali aplikasi dibuka. Tidak ada salinan,
+ *     tidak ada pekerjaan sinkron: apa yang diketik di Sheet langsung terlihat
+ *     di HP, dan tidak ada dua angka yang bisa berselisih.
+ *   - Tab `KKG …` milik aplikasi. Di situlah transaksi dari HP, anggaran,
+ *     rutin, dan daftar belanja disimpan.
  *
  * Baca PANDUAN.md untuk langkah pemasangan.
  */
 
+// Tab milik aplikasi. Berawalan `KKG ` supaya di deretan tab paling bawah jelas
+// mana yang boleh disentuh manusia dan mana yang ditulis skrip.
 var TAB = {
-  TRANSAKSI: 'Transaksi',
-  RUTIN: 'Rutin',
-  ANGGARAN: 'Anggaran',
-  KATEGORI: 'Kategori',
-  SAVING: 'Saving',
-  PERANGKAT: 'Perangkat',
-  PENGATURAN: 'Pengaturan',
-  RINGKASAN: 'Ringkasan',
-  BELANJA: 'Belanja'
+  TRANSAKSI: 'KKG Transaksi',
+  TANDA: 'KKG Tanda',
+  KATEGORI: 'KKG Kategori',
+  ANGGARAN: 'KKG Anggaran',
+  RUTIN: 'KKG Rutin',
+  BELANJA: 'KKG Belanja',
+  PERANGKAT: 'KKG Perangkat',
+  PENGATURAN: 'KKG Pengaturan',
+  RINGKASAN: 'KKG Ringkasan'
 };
 
-var HEADER = {
-  Transaksi: ['id', 'tanggal', 'jenis', 'kategori', 'item', 'nominal', 'sifat',
-              'catatan', 'sumber', 'dibuat', 'diubah', 'status'],
-  Rutin: ['id', 'nama', 'tipe', 'jenis', 'kategori', 'nominal', 'sifat',
-          'hari_jatuh_tempo', 'mulai', 'total_termin', 'termin_terbayar', 'aktif'],
-  Anggaran: ['bulan', 'kategori', 'pagu', 'status', 'diubah'],
-  Kategori: ['id', 'jenis', 'nama', 'urutan', 'status', 'dibuat', 'diubah'],
-  Saving: ['id', 'tanggal', 'debet', 'kredit', 'saldo', 'keterangan', 'status'],
-  Perangkat: ['id', 'endpoint', 'p256dh', 'auth', 'label', 'terdaftar'],
-  Pengaturan: ['kunci', 'nilai'],
-  Ringkasan: ['bulan', 'pemasukan', 'tetap', 'rumah_tangga', 'sisa',
-              'basis_penghasilan', 'perpuluhan', 'saving', 'entertain', 'jumlah_transaksi'],
-  // Satu baris per barang, selamanya. Mencentang tidak menghapus barisnya —
-  // hanya mengubah status dan mencap tanggalnya, supaya "kapan terakhir beli
-  // telur" masih bisa dijawab setahun kemudian.
-  Belanja: ['id', 'nama', 'status', 'terakhir_beli', 'kali', 'dibuat', 'diubah']
+/** Tab bawaan. Hanya dibaca — tidak satu pun fungsi di berkas ini menulisinya. */
+var BACA = {
+  INPUT: 'INPUT TRANSAKSI',
+  PILIHAN: 'PILIHAN',
+  TARGET: 'TARGET'
 };
 
-var JENIS = { PEMASUKAN: 'PEMASUKAN', TETAP: 'TETAP', RUMAH_TANGGA: 'RUMAH_TANGGA' };
+// `INPUT TRANSAKSI` punya tiga baris judul sebelum headernya, jadi barisan
+// datanya mulai di baris 5. Rumus REKAP BULANAN berhenti di baris 1007.
+var INPUT_BARIS_DATA = 5;
+var INPUT_KOLOM = ['tanggal', 'keterangan', 'jenis', 'kelompok', 'kategori',
+                   'bayar_pakai', 'milik', 'nominal', 'bulan', 'catatan'];
+
+var HEADER = {};
+// Sepuluh kolom pertama sengaja persis sama dengan `INPUT TRANSAKSI`. Kelak,
+// saat semuanya mau disatukan, memindahkannya cuma soal salin A:J — dan rumus
+// REKAP BULANAN tidak perlu diubah sedikit pun.
+HEADER[TAB.TRANSAKSI] = INPUT_KOLOM.concat(
+  ['id', 'sifat', 'sumber', 'dibuat', 'diubah', 'status']);
+// Penanda milik aplikasi untuk baris yang tinggal di `INPUT TRANSAKSI`. Dikunci
+// pada `tanda` — sidik isi barisnya — bukan nomor baris, supaya menyisipkan
+// baris baru di tengah Sheet tidak menggeser kepemilikan penanda.
+HEADER[TAB.TANDA] = ['tanda', 'id', 'sifat', 'catatan_app', 'diubah'];
+HEADER[TAB.KATEGORI] = ['nama', 'kelompok', 'urutan', 'status', 'dibuat', 'diubah'];
+HEADER[TAB.ANGGARAN] = ['bulan', 'ruang', 'nama', 'pagu', 'status', 'diubah'];
+HEADER[TAB.RUTIN] = ['id', 'nama', 'tipe', 'jenis', 'kelompok', 'kategori',
+                     'bayar_pakai', 'milik', 'nominal', 'sifat',
+                     'hari_jatuh_tempo', 'mulai', 'total_termin',
+                     'termin_terbayar', 'aktif'];
+HEADER[TAB.BELANJA] = ['id', 'nama', 'status', 'terakhir_beli', 'kali', 'dibuat', 'diubah'];
+HEADER[TAB.PERANGKAT] = ['id', 'endpoint', 'p256dh', 'auth', 'label', 'terdaftar'];
+HEADER[TAB.PENGATURAN] = ['kunci', 'nilai'];
+HEADER[TAB.RINGKASAN] = ['bulan', 'pemasukan', 'saving', 'harian', 'sosial',
+                         'luar', 'total_keluar', 'sisa', 'jumlah_transaksi'];
+
+var JENIS = {
+  PEMASUKAN: 'Pemasukan',
+  PENGELUARAN: 'Pengeluaran',
+  ALOKASI: 'Alokasi Tujuan',
+  TRANSFER: 'Transfer'
+};
+
+var KELOMPOK = {
+  SAVING: 'Saving 30%',
+  HARIAN: 'Harian 40%',
+  SOSIAL: 'Perpuluhan/Sosial 10%',
+  LUAR: 'Kegiatan Luar 20%',
+  NETRAL: 'Transfer / Tidak dihitung'
+};
+
+/**
+ * Empat pos yang dijumlahkan REKAP BULANAN. Urutannya menentukan urutan tampil
+ * di aplikasi, dan `NETRAL` sengaja tidak ada di sini: apa pun yang berkelompok
+ * `Transfer / Tidak dihitung` memang tidak ikut hitungan mana pun.
+ */
+var POS = [KELOMPOK.HARIAN, KELOMPOK.SAVING, KELOMPOK.SOSIAL, KELOMPOK.LUAR];
+
 var SIFAT = { WAJIB: 'WAJIB', KEINGINAN: 'KEINGINAN' };
 
 /**
- * Benih kategori. Setelah tab `Kategori` terisi, tab itulah yang jadi sumber
- * kebenaran — daftar di sini hanya dipakai saat menyemai tab kosong dan oleh
- * Migrasi.gs untuk mencocokkan kategori dari Sheet lama.
+ * Kategori yang dipakai rumus REKAP BULANAN kolom I–L dan DASHBOARD E4:E5,
+ * tapi tidak ada di dropdown `PILIHAN` — jadi kolom Trip Kota, Travel LN,
+ * Renovasi, dan Bayar Utang selamanya nol. Aplikasi menyediakannya lewat tab
+ * `KKG Kategori` supaya bisa dipilih saat mencatat; `PILIHAN` tidak disentuh.
  */
-var KATEGORI = {
-  // Empat kategori pertama adalah basis rumus 10/30/20 (lihat basis_persen_kategori).
-  // 'Gaji Ryan' sengaja dipisah karena di Sheet lama memang tidak ikut dihitung.
-  PEMASUKAN: ['Gaji Pokok', 'Gaji BRU', 'Tunjangan', 'Uang Makan',
-              'Gaji Ryan', 'Fee & Honor', 'THR & Bonus', 'Cicilan Masuk', 'Lainnya'],
-  TETAP: ['Arisan', 'Rumah', 'Utilitas', 'Langganan', 'Transport', 'Cicilan',
-          'Keluarga', 'Kartu Kredit', 'Uang Makan'],
-  RUMAH_TANGGA: ['Pangan', 'Sandang', 'Papan', 'Hobi', 'Gift', 'Travelling',
-                 'Kesehatan', 'Lainnya']
-};
+var KATEGORI_TAMBAHAN = [
+  { nama: 'Keluar Kota Bulanan', kelompok: KELOMPOK.LUAR },
+  { nama: 'Luar Negeri Tahunan', kelompok: KELOMPOK.LUAR },
+  { nama: 'Renovasi Atap & Kitchen Set', kelompok: KELOMPOK.SAVING },
+  { nama: 'Hutang Kakak Suami', kelompok: KELOMPOK.SAVING }
+];
 
 /** Nilai bawaan tab Pengaturan. Hanya ditulis kalau kuncinya belum ada. */
 var PENGATURAN_BAWAAN = {
-  persen_perpuluhan: '10',
-  persen_saving: '30',
-  persen_entertain: '20',
-  // Kategori pemasukan yang jadi basis persentase 10/30/20. Mengikuti rumus di
-  // Sheet lama yang selalu menunjuk baris 8-11: gaji pokok Thesa + gaji BRU +
-  // tunjangan + uang makan. Gaji Ryan, THR, fee, dan pencairan cicilan TIDAK
-  // ikut dihitung.
-  basis_persen_kategori: 'Gaji Pokok,Gaji BRU,Tunjangan,Uang Makan',
+  // Ke mana transaksi baru dari HP ditulis.
+  //
+  //   'KKG Transaksi'    — tab milik aplikasi, tidak menyentuh punya Ryan.
+  //                        REKAP BULANAN belum melihatnya.
+  //   'INPUT TRANSAKSI'  — langsung di tabel yang sama dengan isian tangan,
+  //                        jadi REKAP BULANAN dan DASHBOARD ikut terisi.
+  //
+  // Mengubah satu sel ini sudah cukup; tidak ada kode yang perlu di-deploy ulang.
+  tab_tulis: 'KKG Transaksi',
   zona_waktu: 'Asia/Jakarta',
   worker_url: '',
   worker_rahasia: '',
@@ -82,15 +129,42 @@ function ss_() {
   return SpreadsheetApp.getActiveSpreadsheet();
 }
 
+/**
+ * Zona waktu yang dipakai untuk semua cap tanggal.
+ *
+ * Sengaja TIDAK memakai getSpreadsheetTimeZone(). Spreadsheet ini hasil konversi
+ * dari berkas Excel, dan konversinya membawa zona waktu asalnya —
+ * America/Los_Angeles, bukan Asia/Jakarta. Akibatnya diam: transaksi yang
+ * dicatat jam 10 pagi di Surabaya tercatat bertanggal kemarin, dan kalau
+ * kebetulan tanggal 1, ia mendarat di baris bulan yang salah di REKAP BULANAN.
+ * Tidak ada yang berbunyi; angkanya cuma pindah bulan.
+ *
+ * Urutannya: baris `zona_waktu` di KKG Pengaturan, lalu zona proyek skrip ini
+ * (appsscript.json), baru Asia/Jakarta sebagai jaring terakhir.
+ */
+var _zonaTertahan = null;
+
 function zona_() {
-  return ss_().getSpreadsheetTimeZone() || 'Asia/Jakarta';
+  if (_zonaTertahan) return _zonaTertahan;
+  var pilih = '';
+  try {
+    pilih = String(pengaturan_().zona_waktu || '').trim();
+    // Zona yang salah ketik membuat formatDate melempar galat di tempat yang
+    // jauh dari sebabnya. Diuji sekali di sini, selagi sebabnya masih dekat.
+    if (pilih) Utilities.formatDate(new Date(), pilih, 'yyyy-MM-dd');
+  } catch (e) {
+    pilih = '';
+  }
+  _zonaTertahan = pilih || Session.getScriptTimeZone() || 'Asia/Jakarta';
+  return _zonaTertahan;
 }
 
-/** Ambil tab, buat kalau belum ada, dan pastikan barisan headernya benar. */
+/** Ambil tab milik aplikasi, buat kalau belum ada, dan pastikan headernya benar. */
 function tab_(nama) {
   var buku = ss_();
   var sh = buku.getSheetByName(nama);
   var header = HEADER[nama];
+  if (!header) throw new Error('Tab ini bukan milik aplikasi: ' + nama);
   if (!sh) {
     sh = buku.insertSheet(nama);
     sh.getRange(1, 1, 1, header.length).setValues([header]);
@@ -107,7 +181,17 @@ function tab_(nama) {
   return sh;
 }
 
-/** Seluruh baris data satu tab sebagai array objek, plus nomor barisnya. */
+/** Tab bawaan. Melempar galat kalau hilang, bukan diam-diam membuatnya. */
+function tabBaca_(nama) {
+  var sh = ss_().getSheetByName(nama);
+  if (!sh) {
+    throw new Error('Tab "' + nama + '" tidak ada di spreadsheet ini. ' +
+      'Aplikasi butuh tab bawaan INPUT TRANSAKSI, PILIHAN, dan TARGET.');
+  }
+  return sh;
+}
+
+/** Seluruh baris data satu tab milik aplikasi, plus nomor barisnya. */
 function baca_(nama) {
   var sh = tab_(nama);
   var akhir = sh.getLastRow();
@@ -167,9 +251,30 @@ function perbaruiBaris_(nama, nomorBaris, obj) {
   sh.getRange(nomorBaris, 1, 1, header.length).setValues([baris]);
 }
 
+/** Nomor kolom (1-based) sebuah medan. Dipakai supaya tidak ada huruf kolom
+ *  yang ditulis tangan — huruf akan salah diam-diam begitu HEADER diurutkan
+ *  ulang, dan salahnya baru ketahuan setelah data tertulis di tempat keliru. */
+function kolom_(nama, medan) {
+  var i = HEADER[nama].indexOf(medan);
+  if (i < 0) throw new Error('Kolom tidak dikenal: ' + nama + '.' + medan);
+  return i + 1;
+}
+
 function idBaru_(awalan) {
   return awalan + '-' + Date.now().toString(36) + '-' +
          Utilities.getUuid().substring(0, 6);
+}
+
+/** Delapan huruf heksadesimal pertama dari MD5. Cukup untuk membedakan baris. */
+function sidik_(teks) {
+  var bita = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.MD5, String(teks), Utilities.Charset.UTF_8);
+  var hasil = '';
+  for (var i = 0; i < 4; i++) {
+    var b = (bita[i] + 256) % 256;
+    hasil += (b < 16 ? '0' : '') + b.toString(16);
+  }
+  return hasil;
 }
 
 /** Tanggal apa pun (Date / 'yyyy-MM-dd' / serial Excel) → 'yyyy-MM-dd'. */
@@ -182,7 +287,15 @@ function keTanggal_(nilai) {
   }
   var s = String(nilai || '').trim();
   var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? m[0] : '';
+  if (m) return m[0];
+  // '01-Sep-2026', bentuk yang dipakai kolom Tanggal di INPUT TRANSAKSI kalau
+  // selnya kebetulan tersimpan sebagai teks, bukan tanggal.
+  m = s.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+  if (m) {
+    var bl = BULAN_EN.indexOf(m[2].charAt(0).toUpperCase() + m[2].substring(1, 3).toLowerCase());
+    if (bl >= 0) return m[3] + '-' + pad2_(bl + 1) + '-' + pad2_(parseInt(m[1], 10));
+  }
+  return '';
 }
 
 function bulanDari_(tanggal) {
@@ -207,6 +320,30 @@ function keBulan_(nilai) {
   var s = String(nilai || '').trim();
   var m = s.match(/^(\d{4})-(\d{2})/);
   return m ? m[0] : '';
+}
+
+var BULAN_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function pad2_(n) { return n < 10 ? '0' + n : String(n); }
+
+/** '2026-09' → 'Sep-26', bentuk kolom Bulan di INPUT TRANSAKSI. */
+function keBulanSheet_(bulan) {
+  var m = String(bulan || '').match(/^(\d{4})-(\d{2})$/);
+  if (!m) return '';
+  return BULAN_EN[parseInt(m[2], 10) - 1] + '-' + m[1].substring(2);
+}
+
+/** 'Sep-26' (atau tanggal, kalau Sheets terlanjur mengubahnya) → '2026-09'. */
+function bulanSheet_(nilai) {
+  if (nilai instanceof Date) return Utilities.formatDate(nilai, zona_(), 'yyyy-MM');
+  var s = String(nilai || '').trim();
+  var m = s.match(/^([A-Za-z]{3})-(\d{2})$/);
+  if (m) {
+    var bl = BULAN_EN.indexOf(m[1].charAt(0).toUpperCase() + m[1].substring(1).toLowerCase());
+    if (bl >= 0) return '20' + m[2] + '-' + pad2_(bl + 1);
+  }
+  return keBulan_(nilai);
 }
 
 function sekarang_() {
@@ -234,11 +371,20 @@ function setelPengaturan_(kunci, nilai) {
   var baris = baca_(TAB.PENGATURAN);
   for (var i = 0; i < baris.length; i++) {
     if (String(baris[i].kunci) === kunci) {
-      sh.getRange(baris[i]._baris, 2).setValue(nilai);
+      sh.getRange(baris[i]._baris, kolom_(TAB.PENGATURAN, 'nilai')).setValue(nilai);
       return;
     }
   }
   sh.appendRow([kunci, nilai]);
+}
+
+/**
+ * Tab tujuan transaksi baru. Hanya dua nilai yang sah; salah ketik dikembalikan
+ * ke tab aplikasi, bukan dibiarkan menulis ke tempat yang tidak jelas.
+ */
+function tabTulis_() {
+  var pilih = String(pengaturan_().tab_tulis || TAB.TRANSAKSI).trim();
+  return pilih === BACA.INPUT ? BACA.INPUT : TAB.TRANSAKSI;
 }
 
 // ---------------------------------------------------------------------- auth --
@@ -270,7 +416,7 @@ function hashPin_(pin, garam) {
 function setPin(pin) {
   if (pin === undefined || pin === null || pin === '') {
     throw new Error('setPin butuh argumen, dan tombol Run memanggilnya tanpa argumen. ' +
-      'Pakai pasangPinDariSheet(): tulis PIN di tab Pengaturan baris "pin_baru", lalu jalankan fungsi itu.');
+      'Pakai pasangPinDariSheet(): tulis PIN di tab KKG Pengaturan baris "pin_baru", lalu jalankan fungsi itu.');
   }
   if (String(pin).length < 4) throw new Error('PIN minimal 4 digit.');
   var garam = acak_(24);
@@ -283,7 +429,7 @@ function setPin(pin) {
 /**
  * Pasang PIN tanpa menaruhnya di dalam kode.
  *
- * Caranya: tulis PIN di tab `Pengaturan`, baris berkunci `pin_baru`, lalu
+ * Caranya: tulis PIN di tab `KKG Pengaturan`, baris berkunci `pin_baru`, lalu
  * jalankan fungsi ini. Karena tidak butuh argumen, fungsi ini aman dijalankan
  * dari tombol Run. Setelah PIN di-hash, sel `pin_baru` langsung dikosongkan
  * supaya angkanya tidak tertinggal sebagai teks di spreadsheet.
@@ -291,7 +437,7 @@ function setPin(pin) {
 function pasangPinDariSheet() {
   var pin = String(pengaturan_().pin_baru || '').trim();
   if (!/^[0-9]{4,6}$/.test(pin)) {
-    throw new Error('Belum ada PIN yang sah. Buka tab Pengaturan, tulis 4-6 angka ' +
+    throw new Error('Belum ada PIN yang sah. Buka tab KKG Pengaturan, tulis 4-6 angka ' +
       'di baris berkunci "pin_baru", lalu jalankan pasangPinDariSheet() lagi.');
   }
   setPin(pin);
@@ -340,7 +486,7 @@ function jawab_(obj) {
 
 function doGet(e) {
   // Berguna untuk memastikan deployment hidup dari browser biasa.
-  return jawab_({ ok: true, aplikasi: 'KKG', versi: 1, waktu: sekarang_() });
+  return jawab_({ ok: true, aplikasi: 'KKG', versi: 2, waktu: sekarang_() });
 }
 
 function doPost(e) {
@@ -360,7 +506,7 @@ function doPost(e) {
     if (aksi === 'masuk') {
       var rem = remPin_();
       var p = pengaturan_();
-      if (!p.pin_hash) throw new Error('PIN belum diatur. Jalankan setPin() di editor Apps Script.');
+      if (!p.pin_hash) throw new Error('PIN belum diatur. Jalankan pasangPinDariSheet() di editor Apps Script.');
       if (hashPin_(String(data.pin || ''), p.pin_garam) !== p.pin_hash) {
         rem.gagal();
         throw new Error('PIN salah.');
@@ -379,6 +525,7 @@ function doPost(e) {
       case 'transaksi.ubah':    return jawab_({ ok: true, data: ubahTransaksi_(data) });
       case 'transaksi.hapus':   return jawab_({ ok: true, data: hapusTransaksi_(data) });
       case 'transaksi.daftar':  return jawab_({ ok: true, data: daftarTransaksi_(data) });
+      case 'tanda.simpan':      return jawab_({ ok: true, data: simpanTanda_(data) });
       case 'rutin.simpan':      return jawab_({ ok: true, data: simpanRutin_(data) });
       case 'rutin.hapus':       return jawab_({ ok: true, data: hapusRutin_(data) });
       case 'anggaran.simpan':   return jawab_({ ok: true, data: simpanAnggaran_(data) });
@@ -386,13 +533,9 @@ function doPost(e) {
       case 'kategori.sisihkan': return jawab_({ ok: true, data: sisihkanKategori_(data) });
       case 'kategori.pulihkan': return jawab_({ ok: true, data: pulihkanKategori_(data) });
       case 'belanja.simpan':    return jawab_({ ok: true, data: simpanBelanja_(data) });
-      case 'saving.simpan':     return jawab_({ ok: true, data: simpanSaving_(data) });
-      case 'saving.hapus':      return jawab_({ ok: true, data: hapusSaving_(data) });
       case 'perangkat.daftar':  return jawab_({ ok: true, data: daftarkanPerangkat_(data) });
       case 'perangkat.hapus':   return jawab_({ ok: true, data: hapusPerangkat_(data) });
       case 'pengaturan.simpan': return jawab_({ ok: true, data: simpanPengaturan_(data) });
-      // Tarik isi terbaru `Monthly 26` yang masih diisi admin. Lihat Sinkron.gs.
-      case 'sinkron.jalankan':  return jawab_({ ok: true, data: sinkronDariAplikasi_() });
       default:
         return jawab_({ ok: false, pesan: 'Aksi tidak dikenal: ' + aksi });
     }
@@ -401,59 +544,192 @@ function doPost(e) {
   }
 }
 
-function profilPublik_(p) {
-  var kategori = daftarKategori_();
+// -------------------------------------------------------------- tab bawaan --
+
+/**
+ * Sidik satu baris transaksi dari isinya sendiri.
+ *
+ * Inilah yang membuat aplikasi bisa membaca `INPUT TRANSAKSI` langsung tanpa
+ * mencerminnya lebih dulu: baris yang sama selalu menghasilkan tanda yang sama,
+ * jadi penanda milik aplikasi (sifat WAJIB/KEINGINAN) tetap menempel walau
+ * barisnya bergeser naik-turun karena penyisipan di tengah.
+ *
+ * Konsekuensinya jujur saja: kalau Ryan mengubah nominal atau keterangan sebuah
+ * baris di Sheet, tandanya berubah dan penandanya lepas — sifatnya kembali ke
+ * bawaan. Itu jauh lebih baik daripada penanda yang menempel di baris keliru.
+ */
+function tandaBaris_(t) {
+  // Kolom Bulan sengaja TIDAK ikut. Ia menyimpan 'Sep-26' di dalam sel tapi
+  // '2026-09' begitu dibaca, jadi baris yang sama menghasilkan dua tanda
+  // berbeda tergantung dari mana ia datang — dan aplikasi lalu menulis
+  // kembarannya setiap kali antrian luring mengirim ulang. Tanggalnya sudah
+  // memuat bulan itu, jadi tidak ada yang hilang dengan membuangnya.
+  return [
+    keTanggal_(t.tanggal),
+    String(t.keterangan || '').replace(/\s+/g, ' ').trim().toLowerCase(),
+    Math.round(angka_(t.nominal)),
+    String(t.kategori || '').trim().toLowerCase()
+  ].join('|');
+}
+
+/**
+ * Baris `INPUT TRANSAKSI` apa adanya, dibaca hidup setiap kali dipanggil.
+ *
+ * Baris yang keterangan DAN nominalnya sama-sama kosong dilewati: itu baris
+ * siap-isi yang memang sengaja disediakan di bawah tabel, lengkap dengan
+ * tanggal dan bulan yang sudah terisi rumus.
+ */
+function bacaInput_() {
+  var sh = tabBaca_(BACA.INPUT);
+  var akhir = sh.getLastRow();
+  if (akhir < INPUT_BARIS_DATA) return [];
+  var nilai = sh.getRange(INPUT_BARIS_DATA, 1,
+                          akhir - INPUT_BARIS_DATA + 1, INPUT_KOLOM.length).getValues();
+  var hasil = [];
+  for (var i = 0; i < nilai.length; i++) {
+    var b = nilai[i];
+    var keterangan = String(b[1] == null ? '' : b[1]).trim();
+    var nominal = angka_(b[7]);
+    if (!keterangan && !nominal) continue;
+    var t = {
+      _baris: INPUT_BARIS_DATA + i,
+      tanggal: keTanggal_(b[0]),
+      keterangan: keterangan,
+      jenis: String(b[2] || '').trim(),
+      kelompok: String(b[3] || '').trim(),
+      kategori: String(b[4] || '').trim(),
+      bayar_pakai: String(b[5] || '').trim(),
+      milik: String(b[6] || '').trim(),
+      nominal: nominal,
+      bulan: bulanSheet_(b[8]),
+      catatan: String(b[9] || '').trim()
+    };
+    if (!t.bulan) t.bulan = bulanDari_(t.tanggal);
+    if (!t.tanggal && t.bulan) t.tanggal = t.bulan + '-01';
+    t._tanda = tandaBaris_(t);
+    hasil.push(t);
+  }
+  return hasil;
+}
+
+/** Isi tab `PILIHAN` per kolom, tanpa kembaran dan tanpa sel kosong. */
+function bacaPilihan_() {
+  var sh = tabBaca_(BACA.PILIHAN);
+  var akhir = sh.getLastRow();
+  var nilai = akhir < 2 ? [] : sh.getRange(2, 1, akhir - 1, 5).getValues();
+  var kolom = [[], [], [], [], []];
+  nilai.forEach(function (b) {
+    for (var i = 0; i < 5; i++) {
+      var v = String(b[i] == null ? '' : b[i]).trim();
+      if (v && kolom[i].indexOf(v) < 0) kolom[i].push(v);
+    }
+  });
   return {
-    persen: {
-      perpuluhan: angka_(p.persen_perpuluhan || 10),
-      saving: angka_(p.persen_saving || 30),
-      entertain: angka_(p.persen_entertain || 20)
-    },
-    basisPersenKategori: String(p.basis_persen_kategori || PENGATURAN_BAWAAN.basis_persen_kategori)
-      .split(',').map(function (s) { return s.trim(); }).filter(String),
-    vapidPublik: p.vapid_publik || '',
-    kategori: kategori.aktif,
-    kategoriArsip: kategori.arsip
+    jenis: kolom[0].length ? kolom[0] : [JENIS.PEMASUKAN, JENIS.PENGELUARAN, JENIS.ALOKASI, JENIS.TRANSFER],
+    kelompok: kolom[1].length ? kolom[1] : POS.concat([KELOMPOK.NETRAL]),
+    kategori: kolom[2],
+    bayarPakai: kolom[3],
+    milik: kolom[4]
   };
+}
+
+/** Persen yang tertulis di nama kelompok sendiri: 'Saving 30%' → 30. */
+function persenDariNama_(kelompok) {
+  var m = String(kelompok).match(/(\d+)\s*%/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+/**
+ * Tab `TARGET`: persen empat pos, plus target rupiah (renovasi, utang, KPR).
+ * Kalau tabnya kacau atau barisnya hilang, persen jatuh kembali ke angka yang
+ * sudah tertulis di nama kelompoknya — jadi aplikasi tidak pernah menampilkan
+ * target 0% hanya karena satu baris terhapus.
+ */
+function bacaTarget_() {
+  var pos = {};
+  POS.forEach(function (k) { pos[k] = persenDariNama_(k); });
+  var rupiah = [];
+
+  var sh = ss_().getSheetByName(BACA.TARGET);
+  var akhir = sh ? sh.getLastRow() : 0;
+  if (sh && akhir >= 4) {
+    sh.getRange(4, 1, akhir - 3, 4).getValues().forEach(function (b) {
+      var nama = String(b[0] || '').trim();
+      if (!nama) return;
+      var mentah = b[1];
+      var periode = String(b[2] || '').trim();
+      var keterangan = String(b[3] || '').trim();
+
+      var kelompok = null;
+      POS.forEach(function (k) { if (k.indexOf(nama) === 0) kelompok = k; });
+      if (kelompok) {
+        // Sel berformat persen terbaca 0.3, bukan 30. Yang sudah berupa teks
+        // '30%' terbaca 30. Dua-duanya harus mendarat di angka yang sama.
+        var n = typeof mentah === 'number' ? mentah : angka_(mentah);
+        if (n > 0 && n <= 1) n = n * 100;
+        if (n > 0) pos[kelompok] = Math.round(n * 100) / 100;
+        return;
+      }
+      var nilai = angka_(mentah);
+      if (nilai > 0) rupiah.push({ nama: nama, nilai: nilai, periode: periode, keterangan: keterangan });
+    });
+  }
+  return { pos: pos, rupiah: rupiah };
 }
 
 // -------------------------------------------------------------------- muatan --
 
+function profilPublik_(p) {
+  var pilihan = bacaPilihan_();
+  var kategori = daftarKategori_(pilihan.kategori);
+  return {
+    pilihan: {
+      jenis: pilihan.jenis,
+      kelompok: pilihan.kelompok,
+      bayarPakai: pilihan.bayarPakai,
+      milik: pilihan.milik
+    },
+    pos: POS,
+    kelompokNetral: KELOMPOK.NETRAL,
+    kategori: kategori.aktif,
+    kategoriArsip: kategori.arsip,
+    // Saran kelompok per kategori, dari tab `KKG Kategori`. Form memakainya
+    // untuk mengisi Kelompok sendiri begitu kategori dipilih.
+    kategoriKelompok: kategori.kelompok,
+    target: bacaTarget_(),
+    tabTulis: tabTulis_(),
+    vapidPublik: p.vapid_publik || ''
+  };
+}
+
 /**
- * Satu panggilan yang mengisi seluruh aplikasi saat dibuka: transaksi beberapa
- * bulan terakhir, rutin, anggaran, saving, pengaturan. Sengaja digabung supaya
- * aplikasi cuma sekali jalan-bolak-balik ke server saat start di jaringan HP.
+ * Satu panggilan yang mengisi seluruh aplikasi saat dibuka. Sengaja digabung
+ * supaya aplikasi cuma sekali jalan-bolak-balik ke server saat start di
+ * jaringan HP.
  */
 function muatAwal_(data) {
   var bulanDari = data.dari || '';   // 'yyyy-MM'
-  var semua = baca_(TAB.TRANSAKSI).filter(function (t) {
-    return String(t.status || 'aktif') !== 'dihapus';
-  });
-  var transaksi = semua.map(bentukTransaksi_).filter(function (t) {
+  var semua = semuaTransaksi_();
+  var transaksi = semua.filter(function (t) {
     return !bulanDari || t.bulan >= bulanDari;
   });
+  var bulan = {};
+  semua.forEach(function (t) { if (t.bulan) bulan[t.bulan] = true; });
 
   return {
     transaksi: transaksi,
-    bulanTersedia: bulanTersedia_(semua),
+    bulanTersedia: Object.keys(bulan).sort(),
     rutin: baca_(TAB.RUTIN).map(bentukRutin_),
     // Pagu yang disisihkan ikut dikirim beserta bendera statusnya. Aplikasi
     // yang menyaringnya, bukan server — supaya riwayat pagu lama tetap bisa
     // dilihat dan dipulihkan dari HP.
     anggaran: baca_(TAB.ANGGARAN).map(function (a) {
       return {
-        bulan: keBulan_(a.bulan), kategori: String(a.kategori), pagu: angka_(a.pagu),
+        bulan: keBulan_(a.bulan), ruang: String(a.ruang || 'kategori'),
+        nama: String(a.nama), pagu: angka_(a.pagu),
         status: String(a.status || 'aktif')
       };
     }),
-    saving: baca_(TAB.SAVING)
-      .filter(function (s) { return String(s.status || 'aktif') !== 'dihapus'; })
-      .map(function (s) {
-        return {
-          id: String(s.id), tanggal: keTanggal_(s.tanggal), debet: angka_(s.debet),
-          kredit: angka_(s.kredit), saldo: angka_(s.saldo), keterangan: String(s.keterangan || '')
-        };
-      }),
     // Daftar belanja tidak terikat bulan, jadi dikirim utuh — termasuk barang
     // yang sudah dibeli maupun disisihkan. Aplikasi yang memilah statusnya,
     // supaya "terakhir beli" tetap bisa dilihat dari HP saat sinyal mati.
@@ -463,19 +739,71 @@ function muatAwal_(data) {
   };
 }
 
-function bentukTransaksi_(t) {
+/** Penanda aplikasi, dikunci pada sidik isi baris. */
+function petaTanda_() {
+  var peta = {};
+  baca_(TAB.TANDA).forEach(function (t) { peta[String(t.tanda)] = t; });
+  return peta;
+}
+
+/**
+ * Seluruh transaksi yang dilihat aplikasi: isian tangan di `INPUT TRANSAKSI`
+ * digabung dengan catatan dari HP di `KKG Transaksi`.
+ *
+ * Kalau sebuah baris muncul di dua tempat — misalnya sedang setengah jalan
+ * dipindahkan dengan salin-tempel — yang menang adalah baris di
+ * `INPUT TRANSAKSI`, karena tab itulah yang dibaca REKAP BULANAN. Dengan
+ * begitu angka di aplikasi tidak pernah lebih besar daripada angka di sheet.
+ */
+function semuaTransaksi_() {
+  var tanda = petaTanda_();
+  var hasil = [];
+  var adaDiInput = {};
+
+  bacaInput_().forEach(function (t) {
+    var p = tanda[t._tanda];
+    adaDiInput[t._tanda] = true;
+    hasil.push(bentukTransaksi_({
+      id: p && p.id ? String(p.id) : 'inp-' + sidik_(t._tanda),
+      tanggal: t.tanggal, keterangan: t.keterangan, jenis: t.jenis,
+      kelompok: t.kelompok, kategori: t.kategori, bayar_pakai: t.bayar_pakai,
+      milik: t.milik, nominal: t.nominal, catatan: t.catatan,
+      sifat: p ? String(p.sifat || '') : '',
+      sumber: 'sheet'
+    }, tabTulis_() !== BACA.INPUT));
+  });
+
+  baca_(TAB.TRANSAKSI).forEach(function (t) {
+    if (String(t.status || 'aktif') === 'dihapus') return;
+    if (adaDiInput[tandaBaris_(t)]) return;
+    hasil.push(bentukTransaksi_(t, false));
+  });
+
+  hasil.sort(function (a, b) { return a.tanggal < b.tanggal ? -1 : (a.tanggal > b.tanggal ? 1 : 0); });
+  return hasil;
+}
+
+function bentukTransaksi_(t, terkunci) {
   var tanggal = keTanggal_(t.tanggal);
+  var bulan = tanggal ? tanggal.substring(0, 7) : bulanSheet_(t.bulan);
   return {
     id: String(t.id),
     tanggal: tanggal,
-    bulan: tanggal.substring(0, 7),
-    jenis: String(t.jenis || JENIS.RUMAH_TANGGA),
+    bulan: bulan,
+    jenis: String(t.jenis || JENIS.PENGELUARAN),
+    kelompok: String(t.kelompok || ''),
     kategori: String(t.kategori || ''),
-    item: String(t.item || ''),
+    keterangan: String(t.keterangan || ''),
     nominal: angka_(t.nominal),
+    bayarPakai: String(t.bayar_pakai || ''),
+    milik: String(t.milik || ''),
     sifat: String(t.sifat || ''),
     catatan: String(t.catatan || ''),
-    sumber: String(t.sumber || 'aplikasi')
+    sumber: String(t.sumber || 'aplikasi'),
+    // Baris milik `INPUT TRANSAKSI` tidak bisa diubah atau dihapus dari HP
+    // selama tab_tulis masih menunjuk tab aplikasi. Aplikasi memakai bendera
+    // ini untuk mematikan tombolnya, bukan untuk menyembunyikan barisnya.
+    kunci: terkunci === true
   };
 }
 
@@ -484,8 +812,11 @@ function bentukRutin_(r) {
     id: String(r.id),
     nama: String(r.nama || ''),
     tipe: String(r.tipe || 'tagihan'),
-    jenis: String(r.jenis || JENIS.TETAP),
+    jenis: String(r.jenis || JENIS.PENGELUARAN),
+    kelompok: String(r.kelompok || KELOMPOK.HARIAN),
     kategori: String(r.kategori || ''),
+    bayarPakai: String(r.bayar_pakai || ''),
+    milik: String(r.milik || ''),
     nominal: angka_(r.nominal),
     sifat: String(r.sifat || SIFAT.WAJIB),
     hariJatuhTempo: angka_(r.hari_jatuh_tempo) || 1,
@@ -508,29 +839,57 @@ function bentukBelanja_(b) {
   };
 }
 
-function bulanTersedia_(semua) {
-  var set = {};
-  semua.forEach(function (t) {
-    var b = bulanDari_(t.tanggal);
-    if (b) set[b] = true;
-  });
-  return Object.keys(set).sort();
-}
-
 function daftarTransaksi_(data) {
   var dari = data.dari || '0000-00';
   var sampai = data.sampai || '9999-99';
-  return baca_(TAB.TRANSAKSI)
-    .filter(function (t) { return String(t.status || 'aktif') !== 'dihapus'; })
-    .map(bentukTransaksi_)
-    .filter(function (t) { return t.bulan >= dari && t.bulan <= sampai; });
+  return semuaTransaksi_().filter(function (t) {
+    return t.bulan >= dari && t.bulan <= sampai;
+  });
 }
 
 // ------------------------------------------------------------------ transaksi --
 
 /**
+ * Rapikan satu kiriman dari HP menjadi baris yang siap ditulis.
+ *
+ * `Pemasukan` dan `Transfer` selalu dipaksa berkelompok `Transfer / Tidak
+ * dihitung`, mengikuti kebiasaan yang sudah dipakai di INPUT TRANSAKSI. Kalau
+ * tidak dipaksa, satu pemasukan yang tidak sengaja diberi kelompok `Saving 30%`
+ * akan terhitung dua kali di REKAP BULANAN: sekali sebagai pemasukan, sekali
+ * sebagai alokasi.
+ */
+function rapikanMasuk_(m) {
+  var jenis = String(m.jenis || JENIS.PENGELUARAN);
+  var kelompok = String(m.kelompok || '');
+  if (jenis === JENIS.PEMASUKAN || jenis === JENIS.TRANSFER) kelompok = KELOMPOK.NETRAL;
+  if (!kelompok) kelompok = KELOMPOK.HARIAN;
+  var tanggal = keTanggal_(m.tanggal) || keTanggal_(new Date());
+  return {
+    tanggal: tanggal,
+    keterangan: String(m.keterangan || '').trim(),
+    jenis: jenis,
+    kelompok: kelompok,
+    kategori: String(m.kategori || '').trim(),
+    bayar_pakai: String(m.bayarPakai || ''),
+    milik: String(m.milik || ''),
+    nominal: angka_(m.nominal),
+    bulan: keBulanSheet_(tanggal.substring(0, 7)),
+    catatan: String(m.catatan || ''),
+    sifat: jenis === JENIS.PEMASUKAN ? '' : String(m.sifat || SIFAT.WAJIB)
+  };
+}
+
+/** Sepuluh kolom pertama, urutannya sama dengan INPUT TRANSAKSI. */
+function barisInput_(isi) {
+  return INPUT_KOLOM.map(function (k) {
+    var v = isi[k];
+    return v === undefined || v === null ? '' : v;
+  });
+}
+
+/**
  * Menerima satu transaksi atau sekumpulan (antrian offline dari HP).
- * Idempoten lewat `id`: kalau id sudah ada, baris lama diperbarui, bukan
+ * Idempoten: kalau id sudah pernah tersimpan, baris lama diperbarui, bukan
  * ditambah lagi. Ini yang mencegah duplikat saat sinyal putus-nyambung.
  */
 function simpanTransaksi_(data) {
@@ -538,95 +897,198 @@ function simpanTransaksi_(data) {
   var kunci = LockService.getScriptLock();
   kunci.waitLock(25000);
   try {
-    var adaSekarang = {};
-    baca_(TAB.TRANSAKSI).forEach(function (t) { adaSekarang[String(t.id)] = t; });
-
-    var baru = [];
-    var diperbarui = 0;
-    var hasil = [];
-
-    masuk.forEach(function (m) {
-      var id = String(m.id || idBaru_('trx'));
-      var isi = {
-        id: id,
-        tanggal: keTanggal_(m.tanggal) || keTanggal_(new Date()),
-        jenis: m.jenis || JENIS.RUMAH_TANGGA,
-        kategori: m.kategori || '',
-        item: String(m.item || '').trim(),
-        nominal: angka_(m.nominal),
-        sifat: m.jenis === JENIS.PEMASUKAN ? '' : (m.sifat || SIFAT.WAJIB),
-        catatan: m.catatan || '',
-        sumber: m.sumber || 'aplikasi',
-        dibuat: sekarang_(),
-        diubah: sekarang_(),
-        status: 'aktif'
-      };
-      if (adaSekarang[id]) {
-        isi.dibuat = adaSekarang[id].dibuat || isi.dibuat;
-        perbaruiBaris_(TAB.TRANSAKSI, adaSekarang[id]._baris, isi);
-        diperbarui++;
-      } else {
-        baru.push(isi);
-      }
-      hasil.push(bentukTransaksi_(isi));
-    });
-
-    tulisBanyak_(TAB.TRANSAKSI, baru);
+    var hasil = tabTulis_() === BACA.INPUT
+      ? tulisKeInput_(masuk)
+      : tulisKeTabAplikasi_(masuk);
     bangunRingkasan_();
-    return { tersimpan: hasil, baru: baru.length, diperbarui: diperbarui };
+    return hasil;
   } finally {
     kunci.releaseLock();
   }
+}
+
+function tulisKeTabAplikasi_(masuk) {
+  var adaSekarang = {};
+  baca_(TAB.TRANSAKSI).forEach(function (t) { adaSekarang[String(t.id)] = t; });
+
+  var baru = [];
+  var diperbarui = 0;
+  var hasil = [];
+
+  masuk.forEach(function (m) {
+    var id = String(m.id || idBaru_('trx'));
+    var isi = rapikanMasuk_(m);
+    isi.id = id;
+    isi.sumber = m.sumber || 'aplikasi';
+    isi.dibuat = sekarang_();
+    isi.diubah = sekarang_();
+    isi.status = 'aktif';
+    if (adaSekarang[id]) {
+      isi.dibuat = adaSekarang[id].dibuat || isi.dibuat;
+      perbaruiBaris_(TAB.TRANSAKSI, adaSekarang[id]._baris, isi);
+      diperbarui++;
+    } else {
+      baru.push(isi);
+    }
+    hasil.push(bentukTransaksi_(isi, false));
+  });
+
+  tulisBanyak_(TAB.TRANSAKSI, baru);
+  return { tersimpan: hasil, baru: baru.length, diperbarui: diperbarui, tujuan: TAB.TRANSAKSI };
+}
+
+/**
+ * Menulis langsung ke `INPUT TRANSAKSI`, dipakai kalau `tab_tulis` sudah
+ * dibalik ke sana.
+ *
+ * Baris siap-isi yang sudah disediakan di bawah tabel dipakai lebih dulu
+ * sebelum menambah baris baru, supaya tabel Ryan tidak berubah bentuk hanya
+ * karena aplikasi ikut mengisinya. Sifat WAJIB/KEINGINAN — yang tidak punya
+ * kolom di sana — mendarat di `KKG Tanda`.
+ */
+function tulisKeInput_(masuk) {
+  var sh = tabBaca_(BACA.INPUT);
+  var adaDiInput = {};
+  var slotKosong = [];
+  var akhir = sh.getLastRow();
+  if (akhir >= INPUT_BARIS_DATA) {
+    var nilai = sh.getRange(INPUT_BARIS_DATA, 1,
+                            akhir - INPUT_BARIS_DATA + 1, INPUT_KOLOM.length).getValues();
+    for (var i = 0; i < nilai.length; i++) {
+      var keterangan = String(nilai[i][1] == null ? '' : nilai[i][1]).trim();
+      if (!keterangan && !angka_(nilai[i][7])) slotKosong.push(INPUT_BARIS_DATA + i);
+    }
+  }
+  bacaInput_().forEach(function (t) { adaDiInput[t._tanda] = t; });
+
+  var hasil = [];
+  var baru = 0;
+  masuk.forEach(function (m) {
+    var id = String(m.id || idBaru_('trx'));
+    var isi = rapikanMasuk_(m);
+    var tanda = tandaBaris_(isi);
+    if (!adaDiInput[tanda]) {
+      var baris = slotKosong.length ? slotKosong.shift() : sh.getLastRow() + 1;
+      sh.getRange(baris, 1, 1, INPUT_KOLOM.length).setValues([barisInput_(isi)]);
+      adaDiInput[tanda] = isi;
+      baru++;
+    }
+    tulisTanda_(tanda, id, isi.sifat, '');
+    isi.id = id;
+    isi.sumber = 'sheet';
+    hasil.push(bentukTransaksi_(isi, false));
+  });
+  return { tersimpan: hasil, baru: baru, diperbarui: 0, tujuan: BACA.INPUT };
+}
+
+/**
+ * Cari satu transaksi berdasarkan id, di tab mana pun ia tinggal.
+ * @return {{di: string, baris: number, isi: object, tanda: string}|null}
+ */
+function cariTransaksi_(id) {
+  id = String(id);
+  var baris = baca_(TAB.TRANSAKSI);
+  for (var i = 0; i < baris.length; i++) {
+    if (String(baris[i].id) === id && String(baris[i].status || 'aktif') !== 'dihapus') {
+      return { di: TAB.TRANSAKSI, baris: baris[i]._baris, isi: baris[i], tanda: tandaBaris_(baris[i]) };
+    }
+  }
+  var tanda = petaTanda_();
+  var input = bacaInput_();
+  for (var j = 0; j < input.length; j++) {
+    var p = tanda[input[j]._tanda];
+    var idBaris = p && p.id ? String(p.id) : 'inp-' + sidik_(input[j]._tanda);
+    if (idBaris === id) {
+      return { di: BACA.INPUT, baris: input[j]._baris, isi: input[j], tanda: input[j]._tanda };
+    }
+  }
+  return null;
+}
+
+function tolakBarisSheet_() {
+  return new Error(
+    'Baris ini milik tab INPUT TRANSAKSI, jadi hanya bisa diubah dari Google Sheets. ' +
+    'Kalau ingin aplikasi ikut mengelolanya, ganti baris "tab_tulis" di tab KKG Pengaturan ' +
+    'menjadi INPUT TRANSAKSI.');
 }
 
 function ubahTransaksi_(data) {
   var kunci = LockService.getScriptLock();
   kunci.waitLock(25000);
   try {
-    var baris = baca_(TAB.TRANSAKSI);
-    for (var i = 0; i < baris.length; i++) {
-      if (String(baris[i].id) !== String(data.id)) continue;
-      var isi = {
-        id: baris[i].id,
-        tanggal: keTanggal_(data.tanggal !== undefined ? data.tanggal : baris[i].tanggal),
-        jenis: data.jenis !== undefined ? data.jenis : baris[i].jenis,
-        kategori: data.kategori !== undefined ? data.kategori : baris[i].kategori,
-        item: data.item !== undefined ? data.item : baris[i].item,
-        nominal: angka_(data.nominal !== undefined ? data.nominal : baris[i].nominal),
-        sifat: data.sifat !== undefined ? data.sifat : baris[i].sifat,
-        catatan: data.catatan !== undefined ? data.catatan : baris[i].catatan,
-        sumber: baris[i].sumber,
-        dibuat: baris[i].dibuat,
-        diubah: sekarang_(),
-        status: 'aktif'
-      };
-      if (isi.jenis === JENIS.PEMASUKAN) isi.sifat = '';
-      perbaruiBaris_(TAB.TRANSAKSI, baris[i]._baris, isi);
+    var temu = cariTransaksi_(data.id);
+    if (!temu) throw new Error('Transaksi tidak ditemukan: ' + data.id);
+
+    var lama = temu.isi;
+    var gabung = {
+      tanggal: data.tanggal !== undefined ? data.tanggal : lama.tanggal,
+      keterangan: data.keterangan !== undefined ? data.keterangan : lama.keterangan,
+      jenis: data.jenis !== undefined ? data.jenis : lama.jenis,
+      kelompok: data.kelompok !== undefined ? data.kelompok : lama.kelompok,
+      kategori: data.kategori !== undefined ? data.kategori : lama.kategori,
+      bayarPakai: data.bayarPakai !== undefined ? data.bayarPakai : lama.bayar_pakai,
+      milik: data.milik !== undefined ? data.milik : lama.milik,
+      nominal: data.nominal !== undefined ? data.nominal : lama.nominal,
+      catatan: data.catatan !== undefined ? data.catatan : lama.catatan,
+      sifat: data.sifat !== undefined ? data.sifat : lama.sifat
+    };
+    var isi = rapikanMasuk_(gabung);
+
+    if (temu.di === BACA.INPUT) {
+      if (tabTulis_() !== BACA.INPUT) throw tolakBarisSheet_();
+      var sh = tabBaca_(BACA.INPUT);
+      sh.getRange(temu.baris, 1, 1, INPUT_KOLOM.length).setValues([barisInput_(isi)]);
+      hapusTanda_(temu.tanda);
+      tulisTanda_(tandaBaris_(isi), String(data.id), isi.sifat, '');
+      isi.id = String(data.id);
+      isi.sumber = 'sheet';
       bangunRingkasan_();
-      return bentukTransaksi_(isi);
+      return bentukTransaksi_(isi, false);
     }
-    throw new Error('Transaksi tidak ditemukan: ' + data.id);
+
+    isi.id = String(lama.id);
+    isi.sumber = lama.sumber;
+    isi.dibuat = lama.dibuat;
+    isi.diubah = sekarang_();
+    isi.status = 'aktif';
+    perbaruiBaris_(TAB.TRANSAKSI, temu.baris, isi);
+    bangunRingkasan_();
+    return bentukTransaksi_(isi, false);
   } finally {
     kunci.releaseLock();
   }
 }
 
-/** Hapus lunak — barisnya tetap ada supaya tidak ada data yang hilang permanen. */
+/**
+ * Hapus lunak di tab aplikasi — barisnya tetap ada, hanya berstatus 'dihapus',
+ * supaya tidak ada data yang benar-benar hilang.
+ *
+ * Di `INPUT TRANSAKSI` tidak ada kolom status, jadi yang dilakukan adalah
+ * mengosongkan isi barisnya dan membiarkan barisnya berdiri sebagai baris
+ * siap-isi berikutnya. Barisnya tidak dibuang supaya tinggi tabel — dan rumus
+ * yang menunjuk ke sana — tidak bergeser.
+ */
 function hapusTransaksi_(data) {
   var kunci = LockService.getScriptLock();
   kunci.waitLock(25000);
   try {
-    var sh = tab_(TAB.TRANSAKSI);
-    var kolomStatus = HEADER.Transaksi.indexOf('status') + 1;
-    var kolomDiubah = HEADER.Transaksi.indexOf('diubah') + 1;
-    var baris = baca_(TAB.TRANSAKSI);
-    var idSet = {};
-    (data.daftar || [data.id]).forEach(function (id) { idSet[String(id)] = true; });
+    var daftar = data.daftar || [data.id];
     var n = 0;
-    baris.forEach(function (b) {
-      if (!idSet[String(b.id)]) return;
-      sh.getRange(b._baris, kolomStatus).setValue('dihapus');
-      sh.getRange(b._baris, kolomDiubah).setValue(sekarang_());
+    var shT = tab_(TAB.TRANSAKSI);
+    var kolomStatus = kolom_(TAB.TRANSAKSI, 'status');
+    var kolomDiubah = kolom_(TAB.TRANSAKSI, 'diubah');
+
+    daftar.forEach(function (id) {
+      var temu = cariTransaksi_(id);
+      if (!temu) return;
+      if (temu.di === BACA.INPUT) {
+        if (tabTulis_() !== BACA.INPUT) throw tolakBarisSheet_();
+        tabBaca_(BACA.INPUT).getRange(temu.baris, 1, 1, INPUT_KOLOM.length).clearContent();
+        hapusTanda_(temu.tanda);
+      } else {
+        shT.getRange(temu.baris, kolomStatus).setValue('dihapus');
+        shT.getRange(temu.baris, kolomDiubah).setValue(sekarang_());
+      }
       n++;
     });
     bangunRingkasan_();
@@ -636,75 +1098,140 @@ function hapusTransaksi_(data) {
   }
 }
 
-// -------------------------------------------------------------------- kategori --
+// ---------------------------------------------------------------- penanda --
+
+function tulisTanda_(tanda, id, sifat, catatanApp) {
+  var sh = tab_(TAB.TANDA);
+  var isi = {
+    tanda: tanda, id: String(id), sifat: String(sifat || ''),
+    catatan_app: String(catatanApp || ''), diubah: sekarang_()
+  };
+  var baris = baca_(TAB.TANDA);
+  for (var i = 0; i < baris.length; i++) {
+    if (String(baris[i].tanda) === tanda) {
+      perbaruiBaris_(TAB.TANDA, baris[i]._baris, isi);
+      return;
+    }
+  }
+  tulisBaris_(TAB.TANDA, isi);
+}
+
+function hapusTanda_(tanda) {
+  var sh = tab_(TAB.TANDA);
+  var baris = baca_(TAB.TANDA);
+  for (var i = baris.length - 1; i >= 0; i--) {
+    if (String(baris[i].tanda) === tanda) sh.deleteRow(baris[i]._baris);
+  }
+}
 
 /**
- * Sumber kebenaran daftar kategori.
- *
- * Tab `Kategori` yang menentukan, bukan konstanta KATEGORI di atas — itu cuma
- * benih. Kategori yang "dihapus" dari aplikasi tidak pernah dibuang barisnya;
- * statusnya jadi 'arsip' supaya transaksi lama tetap punya nama kategori yang
- * bisa dibaca, dan supaya kategori itu bisa dipulihkan lagi kapan saja.
+ * Menandai baris yang tinggal di `INPUT TRANSAKSI` sebagai WAJIB atau
+ * KEINGINAN. Sheet baru tidak punya kolom itu, dan kita tidak menambahkannya
+ * ke tab milik Ryan — jadi penandanya disimpan terpisah di `KKG Tanda`.
  */
+function simpanTanda_(data) {
+  var kunci = LockService.getScriptLock();
+  kunci.waitLock(15000);
+  try {
+    var temu = cariTransaksi_(data.id);
+    if (!temu) throw new Error('Transaksi tidak ditemukan: ' + data.id);
+    if (temu.di !== BACA.INPUT) {
+      var isi = temu.isi;
+      isi.sifat = String(data.sifat || '');
+      isi.diubah = sekarang_();
+      perbaruiBaris_(TAB.TRANSAKSI, temu.baris, isi);
+      return bentukTransaksi_(isi, false);
+    }
+    tulisTanda_(temu.tanda, String(data.id), data.sifat, data.catatanApp);
+    var b = temu.isi;
+    b.id = String(data.id);
+    b.sifat = String(data.sifat || '');
+    b.sumber = 'sheet';
+    return bentukTransaksi_(b, tabTulis_() !== BACA.INPUT);
+  } finally {
+    kunci.releaseLock();
+  }
+}
+
+// -------------------------------------------------------------------- kategori --
+//
+// Daftar kategori punya dua sumber. Yang utama adalah kolom C tab `PILIHAN` —
+// itu milik Ryan dan tidak pernah disentuh skrip ini. Tab `KKG Kategori` hanya
+// menambahi: kategori baru yang belum sempat masuk dropdown, saran kelompok
+// untuk sebuah kategori, dan bendera 'arsip' untuk yang tidak mau ditawarkan
+// lagi di form catat.
+//
+// Menyisihkan kategori tidak pernah membuang barisnya, dan tidak pernah
+// mengubah `PILIHAN` — transaksi lama tetap punya nama kategori yang bisa
+// dibaca, dan dropdown di Sheet tetap seperti yang Ryan tulis.
+
 /**
  * Daftar kategori ditahan selama satu eksekusi. Tanpa ini, menyimpan sepuluh
- * pagu sekaligus berarti membaca tab Kategori sepuluh kali — pemborosan yang
+ * pagu sekaligus berarti membaca tabnya sepuluh kali — pemborosan yang
  * langsung terasa sebagai jeda di HP. Setiap tulisan membatalkannya.
  */
 var _kategoriTertahan = null;
 
 function lupakanKategori_() { _kategoriTertahan = null; }
 
+/**
+ * Isi awal `KKG Kategori`: empat kategori yang sudah dipakai rumus REKAP
+ * BULANAN dan DASHBOARD tapi tidak pernah ada di dropdown, jadi kolom Trip
+ * Kota, Travel LN, Renovasi, dan Bayar Utang selamanya nol.
+ */
 function semaiKategori_() {
   var sh = tab_(TAB.KATEGORI);
   if (sh.getLastRow() > 1) return;
   var waktu = sekarang_();
-  var benih = [];
-  Object.keys(KATEGORI).forEach(function (jenis) {
-    KATEGORI[jenis].forEach(function (nama, i) {
-      benih.push({
-        id: idBaru_('kat'), jenis: jenis, nama: nama, urutan: i + 1,
-        status: 'aktif', dibuat: waktu, diubah: waktu
-      });
-    });
-  });
-  tulisBanyak_(TAB.KATEGORI, benih);
+  tulisBanyak_(TAB.KATEGORI, KATEGORI_TAMBAHAN.map(function (k, i) {
+    return {
+      nama: k.nama, kelompok: k.kelompok, urutan: i + 1,
+      status: 'aktif', dibuat: waktu, diubah: waktu
+    };
+  }));
   lupakanKategori_();
 }
 
-/** Baris kategori mentah, sudah tersemai dan terurut. */
 function barisKategori_() {
   if (_kategoriTertahan) return _kategoriTertahan;
   semaiKategori_();
-  var baris = baca_(TAB.KATEGORI).filter(function (k) { return String(k.nama || '').trim(); });
-  baris.sort(function (a, b) {
-    var ua = angka_(a.urutan) || 9999;
-    var ub = angka_(b.urutan) || 9999;
-    if (ua !== ub) return ua - ub;
-    return String(a.nama) < String(b.nama) ? -1 : 1;
+  _kategoriTertahan = baca_(TAB.KATEGORI).filter(function (k) {
+    return String(k.nama || '').trim();
   });
-  _kategoriTertahan = baris;
-  return baris;
+  return _kategoriTertahan;
 }
 
-/** { aktif: {JENIS: [nama]}, arsip: {JENIS: [nama]} } */
-function daftarKategori_() {
-  var hasil = { aktif: {}, arsip: {} };
-  Object.keys(JENIS).forEach(function (j) { hasil.aktif[j] = []; hasil.arsip[j] = []; });
-  barisKategori_().forEach(function (k) {
-    var jenis = String(k.jenis || JENIS.RUMAH_TANGGA);
-    if (!hasil.aktif[jenis]) { hasil.aktif[jenis] = []; hasil.arsip[jenis] = []; }
-    var wadah = String(k.status || 'aktif') === 'arsip' ? hasil.arsip : hasil.aktif;
-    if (wadah[jenis].indexOf(String(k.nama)) < 0) wadah[jenis].push(String(k.nama));
+/** { aktif: [nama], arsip: [nama], kelompok: {nama: kelompok} } */
+function daftarKategori_(dariPilihan) {
+  var pilihan = dariPilihan || bacaPilihan_().kategori;
+  var baris = barisKategori_();
+  var status = {};
+  var kelompok = {};
+  baris.forEach(function (k) {
+    var nama = String(k.nama).trim();
+    status[nama.toLowerCase()] = String(k.status || 'aktif');
+    if (String(k.kelompok || '').trim()) kelompok[nama] = String(k.kelompok).trim();
   });
-  return hasil;
+
+  var aktif = [];
+  var arsip = [];
+  var sudah = {};
+  var taruh = function (nama) {
+    var k = nama.toLowerCase();
+    if (!nama || sudah[k]) return;
+    sudah[k] = true;
+    if (status[k] === 'arsip') arsip.push(nama); else aktif.push(nama);
+  };
+  pilihan.forEach(taruh);
+  baris.forEach(function (k) { taruh(String(k.nama).trim()); });
+
+  return { aktif: aktif, arsip: arsip, kelompok: kelompok };
 }
 
-function cariKategori_(jenis, nama) {
+function cariKategori_(nama) {
   var cari = String(nama || '').trim().toLowerCase();
   var baris = barisKategori_();
   for (var i = 0; i < baris.length; i++) {
-    if (String(baris[i].jenis) !== String(jenis)) continue;
     if (String(baris[i].nama).trim().toLowerCase() === cari) return baris[i];
   }
   return null;
@@ -720,7 +1247,7 @@ function simpanKategori_(data) {
   var kunci = LockService.getScriptLock();
   kunci.waitLock(25000);
   try {
-    masuk.forEach(function (m) { pastikanKategori_(m.jenis, m.nama, m.urutan); });
+    masuk.forEach(function (m) { pastikanKategori_(m.nama, m.kelompok); });
     return { kategori: daftarKategori_() };
   } finally {
     kunci.releaseLock();
@@ -731,67 +1258,87 @@ function simpanKategori_(data) {
  * Pastikan satu kategori ada dan aktif. Tanpa kunci sendiri, jadi aman
  * dipanggil dari dalam fungsi yang sudah memegang kunci skrip.
  */
-function pastikanKategori_(jenis, nama, urutan) {
+function pastikanKategori_(nama, kelompok) {
   nama = String(nama || '').trim();
-  jenis = String(jenis || JENIS.RUMAH_TANGGA);
   if (!nama) throw new Error('Nama kategori tidak boleh kosong.');
-  if (!JENIS[jenis]) throw new Error('Jenis kategori tidak dikenal: ' + jenis);
 
-  var ada = cariKategori_(jenis, nama);
+  var ada = cariKategori_(nama);
   if (ada) {
+    var sh = tab_(TAB.KATEGORI);
+    var berubah = false;
     if (String(ada.status || 'aktif') !== 'aktif') {
-      var sh = tab_(TAB.KATEGORI);
-      sh.getRange(ada._baris, HEADER.Kategori.indexOf('status') + 1).setValue('aktif');
-      sh.getRange(ada._baris, HEADER.Kategori.indexOf('diubah') + 1).setValue(sekarang_());
+      sh.getRange(ada._baris, kolom_(TAB.KATEGORI, 'status')).setValue('aktif');
+      berubah = true;
+    }
+    if (kelompok && String(ada.kelompok || '') !== String(kelompok)) {
+      sh.getRange(ada._baris, kolom_(TAB.KATEGORI, 'kelompok')).setValue(kelompok);
+      berubah = true;
+    }
+    if (berubah) {
+      sh.getRange(ada._baris, kolom_(TAB.KATEGORI, 'diubah')).setValue(sekarang_());
       lupakanKategori_();
     }
     return false;
   }
+
+  // Sudah ada di dropdown `PILIHAN` dan tidak sedang disisihkan — tidak perlu
+  // baris tambahan, kecuali memang mau menyimpan saran kelompoknya.
+  var diPilihan = bacaPilihan_().kategori.some(function (k) {
+    return k.trim().toLowerCase() === nama.toLowerCase();
+  });
+  if (diPilihan && !kelompok) return false;
+
   tulisBaris_(TAB.KATEGORI, {
-    id: idBaru_('kat'), jenis: jenis, nama: nama,
-    urutan: angka_(urutan) || urutanBerikut_(jenis),
+    nama: nama, kelompok: kelompok || '', urutan: urutanBerikut_(),
     status: 'aktif', dibuat: sekarang_(), diubah: sekarang_()
   });
   lupakanKategori_();
   return true;
 }
 
-function urutanBerikut_(jenis) {
+function urutanBerikut_() {
   var maks = 0;
-  barisKategori_().forEach(function (k) {
-    if (String(k.jenis) === String(jenis)) maks = Math.max(maks, angka_(k.urutan));
-  });
+  barisKategori_().forEach(function (k) { maks = Math.max(maks, angka_(k.urutan)); });
   return maks + 1;
 }
 
 /**
- * Sisihkan kategori: bendera 'arsip', barisnya tetap. Pagu bulan berjalan dan
- * bulan-bulan berikutnya ikut disisihkan supaya tidak terus muncul di layar
- * Anggaran, tapi pagu bulan yang sudah lewat dibiarkan utuh sebagai riwayat.
+ * Sisihkan kategori: bendera 'arsip' di `KKG Kategori`, `PILIHAN` tidak
+ * disentuh. Pagu bulan berjalan dan bulan-bulan berikutnya ikut disisihkan
+ * supaya tidak terus muncul di layar Anggaran, tapi pagu bulan yang sudah
+ * lewat dibiarkan utuh sebagai riwayat.
  */
 function sisihkanKategori_(data) {
   var kunci = LockService.getScriptLock();
   kunci.waitLock(25000);
   try {
-    var jenis = String(data.jenis || JENIS.RUMAH_TANGGA);
-    var ada = cariKategori_(jenis, data.nama);
-    if (!ada) throw new Error('Kategori tidak ditemukan: ' + data.nama);
+    var nama = String(data.nama || '').trim();
+    if (!nama) throw new Error('Nama kategori tidak boleh kosong.');
+    var ada = cariKategori_(nama);
     var sh = tab_(TAB.KATEGORI);
-    sh.getRange(ada._baris, HEADER.Kategori.indexOf('status') + 1).setValue('arsip');
-    sh.getRange(ada._baris, HEADER.Kategori.indexOf('diubah') + 1).setValue(sekarang_());
+    if (ada) {
+      sh.getRange(ada._baris, kolom_(TAB.KATEGORI, 'status')).setValue('arsip');
+      sh.getRange(ada._baris, kolom_(TAB.KATEGORI, 'diubah')).setValue(sekarang_());
+    } else {
+      // Kategori bawaan `PILIHAN` disisihkan dengan menambah barisnya di sini,
+      // bukan dengan mencoret namanya di tab milik Ryan.
+      tulisBaris_(TAB.KATEGORI, {
+        nama: nama, kelompok: '', urutan: urutanBerikut_(),
+        status: 'arsip', dibuat: sekarang_(), diubah: sekarang_()
+      });
+    }
     lupakanKategori_();
 
     var sejak = keBulan_(data.sejak) || bulanDari_(new Date());
     var pagu = 0;
     var shA = tab_(TAB.ANGGARAN);
-    var kolomStatusA = HEADER.Anggaran.indexOf('status') + 1;
-    var kolomDiubahA = HEADER.Anggaran.indexOf('diubah') + 1;
     baca_(TAB.ANGGARAN).forEach(function (a) {
-      if (String(a.kategori) !== String(ada.nama)) return;
+      if (String(a.ruang || 'kategori') !== 'kategori') return;
+      if (String(a.nama) !== nama) return;
       if (keBulan_(a.bulan) < sejak) return;
       if (String(a.status || 'aktif') === 'arsip') return;
-      shA.getRange(a._baris, kolomStatusA).setValue('arsip');
-      shA.getRange(a._baris, kolomDiubahA).setValue(sekarang_());
+      shA.getRange(a._baris, kolom_(TAB.ANGGARAN, 'status')).setValue('arsip');
+      shA.getRange(a._baris, kolom_(TAB.ANGGARAN, 'diubah')).setValue(sekarang_());
       pagu++;
     });
     return { kategori: daftarKategori_(), paguDisisihkan: pagu };
@@ -804,9 +1351,7 @@ function pulihkanKategori_(data) {
   var kunci = LockService.getScriptLock();
   kunci.waitLock(25000);
   try {
-    var jenis = String(data.jenis || JENIS.RUMAH_TANGGA);
-    if (!cariKategori_(jenis, data.nama)) throw new Error('Kategori tidak ditemukan: ' + data.nama);
-    pastikanKategori_(jenis, data.nama);
+    pastikanKategori_(data.nama, data.kelompok);
     return { kategori: daftarKategori_() };
   } finally {
     kunci.releaseLock();
@@ -826,12 +1371,17 @@ function simpanRutin_(data) {
     var hasil = [];
     masuk.forEach(function (m) {
       var id = String(m.id || idBaru_('rtn'));
+      var jenis = m.jenis || JENIS.PENGELUARAN;
       var isi = {
         id: id,
         nama: String(m.nama || '').trim(),
         tipe: m.tipe || 'tagihan',
-        jenis: m.jenis || JENIS.TETAP,
+        jenis: jenis,
+        kelompok: jenis === JENIS.PEMASUKAN || jenis === JENIS.TRANSFER
+          ? KELOMPOK.NETRAL : (m.kelompok || KELOMPOK.HARIAN),
         kategori: m.kategori || '',
+        bayar_pakai: m.bayarPakai || '',
+        milik: m.milik || '',
         nominal: angka_(m.nominal),
         sifat: m.sifat || SIFAT.WAJIB,
         hari_jatuh_tempo: angka_(m.hariJatuhTempo) || 1,
@@ -863,26 +1413,32 @@ function hapusRutin_(data) {
   return { dihapus: 0 };
 }
 
+/**
+ * Pagu bisa dipasang di dua ruang: `kelompok` (empat pos besar) atau
+ * `kategori` (rincian di dalamnya). Kuncinya bulan + ruang + nama, jadi pagu
+ * "Harian 40%" dan pagu kategori bernama sama tidak pernah saling menimpa.
+ */
 function simpanAnggaran_(data) {
   var masuk = data.daftar || [data];
   var kunci = LockService.getScriptLock();
   kunci.waitLock(25000);
   try {
     var sh = tab_(TAB.ANGGARAN);
-    var kolomPagu = HEADER.Anggaran.indexOf('pagu') + 1;
-    var kolomStatus = HEADER.Anggaran.indexOf('status') + 1;
-    var kolomDiubah = HEADER.Anggaran.indexOf('diubah') + 1;
+    var kolomPagu = kolom_(TAB.ANGGARAN, 'pagu');
+    var kolomStatus = kolom_(TAB.ANGGARAN, 'status');
+    var kolomDiubah = kolom_(TAB.ANGGARAN, 'diubah');
     var ada = {};
     baca_(TAB.ANGGARAN).forEach(function (a) {
-      ada[keBulan_(a.bulan) + '|' + String(a.kategori)] = a;
+      ada[keBulan_(a.bulan) + '|' + String(a.ruang || 'kategori') + '|' + String(a.nama)] = a;
     });
     var baru = [];
     masuk.forEach(function (m) {
+      var ruang = String(m.ruang || 'kategori');
       // Memagu kategori yang belum terdaftar sekaligus mendaftarkannya. Tanpa
       // ini, pagu yang dikirim dari antrian luring bisa menunjuk kategori yang
       // tidak pernah muncul di form catat.
-      pastikanKategori_(m.jenis || JENIS.RUMAH_TANGGA, m.kategori);
-      var k = keBulan_(m.bulan) + '|' + String(m.kategori);
+      if (ruang === 'kategori') pastikanKategori_(m.nama, m.kelompok);
+      var k = keBulan_(m.bulan) + '|' + ruang + '|' + String(m.nama);
       if (ada[k]) {
         sh.getRange(ada[k]._baris, kolomPagu).setValue(angka_(m.pagu));
         // Memagu ulang kategori yang tadinya disisihkan = memakainya lagi.
@@ -890,7 +1446,7 @@ function simpanAnggaran_(data) {
         sh.getRange(ada[k]._baris, kolomDiubah).setValue(sekarang_());
       } else {
         baru.push({
-          bulan: m.bulan, kategori: m.kategori, pagu: angka_(m.pagu),
+          bulan: m.bulan, ruang: ruang, nama: m.nama, pagu: angka_(m.pagu),
           status: 'aktif', diubah: sekarang_()
         });
       }
@@ -947,69 +1503,6 @@ function simpanBelanja_(data) {
   }
 }
 
-// -------------------------------------------------------------------- saving --
-
-function simpanSaving_(data) {
-  var masuk = data.daftar || [data];
-  var kunci = LockService.getScriptLock();
-  kunci.waitLock(25000);
-  try {
-    var ada = {};
-    baca_(TAB.SAVING).forEach(function (s) { ada[String(s.id)] = s; });
-    var baru = [];
-    masuk.forEach(function (m) {
-      var id = String(m.id || idBaru_('svg'));
-      var isi = {
-        id: id,
-        tanggal: keTanggal_(m.tanggal) || keTanggal_(new Date()),
-        debet: angka_(m.debet),
-        kredit: angka_(m.kredit),
-        saldo: 0,
-        keterangan: String(m.keterangan || ''),
-        status: 'aktif'
-      };
-      if (ada[id]) perbaruiBaris_(TAB.SAVING, ada[id]._baris, isi);
-      else baru.push(isi);
-    });
-    tulisBanyak_(TAB.SAVING, baru);
-    return { saving: hitungUlangSaldoSaving_() };
-  } finally {
-    kunci.releaseLock();
-  }
-}
-
-function hapusSaving_(data) {
-  var sh = tab_(TAB.SAVING);
-  var kolom = HEADER.Saving.indexOf('status') + 1;
-  baca_(TAB.SAVING).forEach(function (s) {
-    if (String(s.id) === String(data.id)) sh.getRange(s._baris, kolom).setValue('dihapus');
-  });
-  return { saving: hitungUlangSaldoSaving_() };
-}
-
-/** Urutkan menurut tanggal lalu tulis ulang kolom saldo berjalan. */
-function hitungUlangSaldoSaving_() {
-  var sh = tab_(TAB.SAVING);
-  var baris = baca_(TAB.SAVING).filter(function (s) {
-    return String(s.status || 'aktif') !== 'dihapus';
-  });
-  baris.sort(function (a, b) {
-    return keTanggal_(a.tanggal) < keTanggal_(b.tanggal) ? -1 : 1;
-  });
-  var saldo = 0;
-  var hasil = [];
-  var kolomSaldo = HEADER.Saving.indexOf('saldo') + 1;
-  baris.forEach(function (s) {
-    saldo += angka_(s.debet) - angka_(s.kredit);
-    sh.getRange(s._baris, kolomSaldo).setValue(saldo);
-    hasil.push({
-      id: String(s.id), tanggal: keTanggal_(s.tanggal), debet: angka_(s.debet),
-      kredit: angka_(s.kredit), saldo: saldo, keterangan: String(s.keterangan || '')
-    });
-  });
-  return hasil;
-}
-
 // ----------------------------------------------------------------- perangkat --
 
 function daftarkanPerangkat_(data) {
@@ -1060,9 +1553,19 @@ function simpanPengaturan_(data) {
 
 /**
  * Jalankan sekali dari editor Apps Script. Aman diulang: tab yang sudah ada
- * tidak disentuh isinya.
+ * tidak disentuh isinya, dan tab bawaan milik Ryan tidak pernah dibuat maupun
+ * diubah oleh fungsi ini.
  */
 function siapkanSheet() {
+  var hilang = [];
+  Object.keys(BACA).forEach(function (k) {
+    if (!ss_().getSheetByName(BACA[k])) hilang.push(BACA[k]);
+  });
+  if (hilang.length) {
+    throw new Error('Spreadsheet ini bukan yang diharapkan — tab ' + hilang.join(', ') +
+      ' tidak ada. Pasang skrip ini di spreadsheet yang memuat INPUT TRANSAKSI, PILIHAN, dan TARGET.');
+  }
+
   Object.keys(TAB).forEach(function (k) { tab_(TAB[k]); });
   var p = pengaturan_();
   Object.keys(PENGATURAN_BAWAAN).forEach(function (k) {
@@ -1070,46 +1573,57 @@ function siapkanSheet() {
   });
   if (!p.rahasia_token) setelPengaturan_('rahasia_token', acak_(48));
   semaiKategori_();
-  formatTabTransaksi_();
+  formatTab_();
   bangunRingkasan_();
-  return 'Tab siap. Berikutnya jalankan setPin("123456") dengan PIN pilihan Anda.';
+  return 'Tab KKG siap. Berikutnya: tulis PIN di baris "pin_baru" tab KKG Pengaturan, ' +
+         'lalu jalankan pasangPinDariSheet().';
 }
 
-/**
- * Menu "KKG" di Spreadsheet. Ada supaya sinkron dari `Monthly 26` bisa
- * dijalankan tanpa membuka editor Apps Script — termasuk oleh admin yang
- * mengisi tab lamanya.
- */
+/** Menu "KKG" di Spreadsheet, supaya pemeliharaan kecil tidak perlu buka editor. */
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('KKG')
-    .addItem('Tarik data dari sheet lama', 'jalankanSinkron')
-    .addItem('Lihat dulu apa yang akan berubah', 'periksaSinkron')
-    .addSeparator()
-    .addItem('Kenapa Sisa beda dengan sheet lama?', 'periksaSelisih')
-    .addSeparator()
+    .addItem('Siapkan / perbaiki tab KKG', 'siapkanSheet')
     .addItem('Segarkan Ringkasan', 'segarkanRingkasan')
+    .addSeparator()
+    .addItem('Pasang PIN dari baris pin_baru', 'pasangPinDariSheet')
     .addToUi();
 }
 
-function formatTabTransaksi_() {
-  var sh = tab_(TAB.TRANSAKSI);
-  sh.getRange('B:B').setNumberFormat('yyyy-mm-dd');
-  sh.getRange('F:F').setNumberFormat('#,##0');
-  sh.setColumnWidth(5, 240);
-  sh.setColumnWidth(8, 220);
+/**
+ * Format kolom tab milik aplikasi.
+ *
+ * Nomor kolomnya diambil dari HEADER lewat kolom_(), tidak pernah ditulis
+ * sebagai huruf. Versi sebelumnya memakai 'B:B' dan sejenisnya, dan itu berarti
+ * setiap kali urutan HEADER digeser, format mendarat di kolom yang salah tanpa
+ * satu pun galat muncul.
+ */
+function formatTab_() {
+  var angkaFormat = '#,##0';
+  var tanggalFormat = 'yyyy-mm-dd';
 
-  var svg = tab_(TAB.SAVING);
-  svg.getRange('B:B').setNumberFormat('yyyy-mm-dd');
-  svg.getRange('C:E').setNumberFormat('#,##0');
+  var t = tab_(TAB.TRANSAKSI);
+  t.getRange(1, kolom_(TAB.TRANSAKSI, 'tanggal'), t.getMaxRows()).setNumberFormat(tanggalFormat);
+  t.getRange(1, kolom_(TAB.TRANSAKSI, 'nominal'), t.getMaxRows()).setNumberFormat(angkaFormat);
+  // Kolom bulan berisi 'Sep-26'. Tanpa dipaksa teks, Sheets mengubahnya jadi
+  // tanggal 26 September dan SUMIFS di REKAP BULANAN tidak pernah cocok lagi.
+  t.getRange(1, kolom_(TAB.TRANSAKSI, 'bulan'), t.getMaxRows()).setNumberFormat('@');
+  t.setColumnWidth(kolom_(TAB.TRANSAKSI, 'keterangan'), 240);
+  t.setColumnWidth(kolom_(TAB.TRANSAKSI, 'catatan'), 220);
 
-  // Kolom bulan ('2026-09') dan bulan mulai cicilan harus tetap teks. Tanpa
-  // ini Google Sheets mengubahnya jadi tanggal, dan pencocokan pagu anggaran
-  // serta hitungan termin cicilan langsung meleset.
-  tab_(TAB.ANGGARAN).getRange('A:A').setNumberFormat('@');
-  tab_(TAB.ANGGARAN).getRange('C:C').setNumberFormat('#,##0');
-  tab_(TAB.RINGKASAN).getRange('A:A').setNumberFormat('@');
-  tab_(TAB.RUTIN).getRange('I:I').setNumberFormat('@');
-  tab_(TAB.RUTIN).getRange('F:F').setNumberFormat('#,##0');
-  tab_(TAB.KATEGORI).getRange('C:C').setNumberFormat('@');
-  tab_(TAB.BELANJA).getRange('D:D').setNumberFormat('yyyy-mm-dd');
+  var a = tab_(TAB.ANGGARAN);
+  a.getRange(1, kolom_(TAB.ANGGARAN, 'bulan'), a.getMaxRows()).setNumberFormat('@');
+  a.getRange(1, kolom_(TAB.ANGGARAN, 'pagu'), a.getMaxRows()).setNumberFormat(angkaFormat);
+
+  var r = tab_(TAB.RUTIN);
+  r.getRange(1, kolom_(TAB.RUTIN, 'mulai'), r.getMaxRows()).setNumberFormat('@');
+  r.getRange(1, kolom_(TAB.RUTIN, 'nominal'), r.getMaxRows()).setNumberFormat(angkaFormat);
+
+  var g = tab_(TAB.RINGKASAN);
+  g.getRange(1, kolom_(TAB.RINGKASAN, 'bulan'), g.getMaxRows()).setNumberFormat('@');
+
+  var k = tab_(TAB.KATEGORI);
+  k.getRange(1, kolom_(TAB.KATEGORI, 'nama'), k.getMaxRows()).setNumberFormat('@');
+
+  var b = tab_(TAB.BELANJA);
+  b.getRange(1, kolom_(TAB.BELANJA, 'terakhir_beli'), b.getMaxRows()).setNumberFormat(tanggalFormat);
 }

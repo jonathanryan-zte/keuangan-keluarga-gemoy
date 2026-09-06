@@ -1,75 +1,63 @@
 /**
- * Membangun ulang tab `Ringkasan` dari tab `Transaksi`.
+ * Membangun ulang tab `KKG Ringkasan` — satu baris per bulan.
  *
- * Tab ini pengganti tampilan `Monthly 26` yang lama: satu baris per bulan,
- * memakai rumus keluarga yang sama (10% perpuluhan / 30% saving / 20%
- * entertain dari basis penghasilan, dan Sisa = pemasukan - tetap - rumah
- * tangga). Bedanya sekarang terisi sendiri.
+ * Rumusnya sengaja meniru `REKAP BULANAN` persis, kolom demi kolom:
+ *
+ *   pemasukan    = jumlah nominal ber-Jenis 'Pemasukan'
+ *   empat pos    = jumlah nominal per Kelompok
+ *   total keluar = jumlah keempat pos
+ *   sisa         = pemasukan - total keluar
+ *
+ * Yang berkelompok `Transfer / Tidak dihitung` tidak pernah ikut — dan justru
+ * kelompok itulah yang dipakai baris pemasukan, sehingga uang masuk tidak
+ * pernah terhitung dua kali.
+ *
+ * Bedanya dengan REKAP BULANAN cuma satu: tab ini juga melihat transaksi yang
+ * dicatat dari HP dan masih tinggal di `KKG Transaksi`. Selama `tab_tulis`
+ * belum dibalik ke INPUT TRANSAKSI, angka di sini bisa lebih besar daripada
+ * angka di REKAP BULANAN — dan selisihnya persis isi tab `KKG Transaksi`.
  */
 
 function bangunRingkasan_() {
-  var p = pengaturan_();
-  var persen = {
-    perpuluhan: angka_(p.persen_perpuluhan || 10) / 100,
-    saving: angka_(p.persen_saving || 30) / 100,
-    entertain: angka_(p.persen_entertain || 20) / 100
-  };
-  var basisKategori = {};
-  String(p.basis_persen_kategori || PENGATURAN_BAWAAN.basis_persen_kategori).split(',').forEach(function (s) {
-    var k = s.trim();
-    if (k) basisKategori[k] = true;
-  });
-
   var perBulan = {};
-  baca_(TAB.TRANSAKSI).forEach(function (t) {
-    if (String(t.status || 'aktif') === 'dihapus') return;
-    var bulan = bulanDari_(t.tanggal);
+  semuaTransaksi_().forEach(function (t) {
+    var bulan = t.bulan;
     if (!bulan) return;
     if (!perBulan[bulan]) {
-      perBulan[bulan] = {
-        bulan: bulan, pemasukan: 0, tetap: 0, rumah_tangga: 0,
-        basis_penghasilan: 0, jumlah_transaksi: 0
-      };
+      perBulan[bulan] = { bulan: bulan, pemasukan: 0, pos: {}, jumlah: 0 };
+      POS.forEach(function (k) { perBulan[bulan].pos[k] = 0; });
     }
     var b = perBulan[bulan];
-    var n = angka_(t.nominal);
-    b.jumlah_transaksi++;
-    var jenis = String(t.jenis);
-    if (jenis === JENIS.PEMASUKAN) {
-      b.pemasukan += n;
-      if (basisKategori[String(t.kategori)]) b.basis_penghasilan += n;
-    } else if (jenis === JENIS.TETAP) {
-      b.tetap += n;
-    } else {
-      b.rumah_tangga += n;
-    }
+    b.jumlah++;
+    if (t.jenis === JENIS.PEMASUKAN) b.pemasukan += t.nominal;
+    if (b.pos[t.kelompok] !== undefined) b.pos[t.kelompok] += t.nominal;
   });
 
-  var bulanUrut = Object.keys(perBulan).sort();
-  var matriks = bulanUrut.map(function (bl) {
+  var matriks = Object.keys(perBulan).sort().map(function (bl) {
     var b = perBulan[bl];
+    var keluar = 0;
+    POS.forEach(function (k) { keluar += b.pos[k]; });
     return [
       b.bulan,
       bulat_(b.pemasukan),
-      bulat_(b.tetap),
-      bulat_(b.rumah_tangga),
-      bulat_(b.pemasukan - b.tetap - b.rumah_tangga),
-      bulat_(b.basis_penghasilan),
-      bulat_(b.basis_penghasilan * persen.perpuluhan),
-      bulat_(b.basis_penghasilan * persen.saving),
-      bulat_(b.basis_penghasilan * persen.entertain),
-      b.jumlah_transaksi
+      bulat_(b.pos[KELOMPOK.SAVING]),
+      bulat_(b.pos[KELOMPOK.HARIAN]),
+      bulat_(b.pos[KELOMPOK.SOSIAL]),
+      bulat_(b.pos[KELOMPOK.LUAR]),
+      bulat_(keluar),
+      bulat_(b.pemasukan - keluar),
+      b.jumlah
     ];
   });
 
   var sh = tab_(TAB.RINGKASAN);
-  var lebar = HEADER.Ringkasan.length;
+  var lebar = HEADER[TAB.RINGKASAN].length;
   if (sh.getLastRow() > 1) {
     sh.getRange(2, 1, sh.getLastRow() - 1, lebar).clearContent();
   }
   if (matriks.length) {
     sh.getRange(2, 1, matriks.length, lebar).setValues(matriks);
-    sh.getRange(2, 2, matriks.length, 8).setNumberFormat('#,##0');
+    sh.getRange(2, 2, matriks.length, 7).setNumberFormat('#,##0');
   }
   return matriks.length;
 }

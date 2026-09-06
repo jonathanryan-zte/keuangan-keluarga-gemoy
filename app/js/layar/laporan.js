@@ -1,6 +1,6 @@
 import { h, roti, kosongkan } from '../ui.js';
 import { rp, rpSingkat, namaBulan, geserBulan } from '../rupiah.js';
-import { st, ringkas, perKategori, laju, saldoSaving } from '../toko.js';
+import { st, ringkas, perKategori, laju, daftarPos, targetPos, progresTarget } from '../toko.js';
 import { tabelKategori, batangSifat } from '../grafik.js';
 
 export function laporan() {
@@ -22,16 +22,20 @@ export function laporan() {
           : null,
         h('div.petak',
           selBanding('Pemasukan', r.pemasukan, lalu.pemasukan),
-          selBanding('Pengeluaran', r.pengeluaran, lalu.pengeluaran, true),
+          selBanding('Total keluar', r.totalKeluar, lalu.totalKeluar, true),
           selBanding('Sisa', r.sisa, lalu.sisa),
-          selBanding('Rumah tangga', r.rumahTangga, lalu.rumahTangga, true)
+          selBanding(daftarPos()[0], r.harian, lalu.harian, true)
+        ),
+        h('div', { gaya: { marginTop: '16px' } },
+          h('h3', { gaya: { marginBottom: '8px' } }, 'Empat pos'),
+          h('div', daftarPos().map((k) => selPos(k, r, lalu)))
         ),
         h('div', { gaya: { marginTop: '16px' } },
           h('h3', { gaya: { marginBottom: '8px' } }, 'Seluruh pengeluaran'),
           batangSifat(r.wajib, r.keinginan))
       ),
       h('div.kaca.kartu',
-        h('div.kepala-kartu', h('h2', 'Per kategori')),
+        h('div.kepala-kartu', h('h2', `Per kategori — ${daftarPos()[0]}`)),
         tabelKategori(kat)
       )
     ),
@@ -68,18 +72,46 @@ function selBanding(label, kini, lalu, terbalik) {
   return sel;
 }
 
+/** Satu pos: terpakai bulan ini vs bulan lalu, plus targetnya. */
+function selPos(kelompok, r, lalu) {
+  const t = targetPos()[kelompok];
+  const kini = r.pos[kelompok] || 0;
+  const dulu = lalu.pos[kelompok] || 0;
+  return h('div.rutin-baris',
+    h('div', { gaya: { flex: 1, minWidth: 0 } },
+      h('div.tebal', { gaya: { fontSize: '14px' } }, kelompok),
+      // "bulan lalu Rp0" bukan kabar, cuma derai — bulan pertama pemakaian
+      // memang belum punya pembanding, dan itu sudah ditulis di atas.
+      h('div.mini.samar', [
+        t.target ? `Target ${rpSingkat(t.target)}` : null,
+        dulu ? `bulan lalu ${rpSingkat(dulu)}` : null
+      ].filter(Boolean).join(' · ') || 'Belum ada target')
+    ),
+    h('div.angka.tebal', rp(kini))
+  );
+}
+
 function catatan(r, lalu, l) {
   const c = [];
   if (r.sisa < 0) c.push(`Bulan ini defisit ${rp(-r.sisa)}. Pengeluaran melebihi pemasukan.`);
   else c.push(`Sisa ${rp(r.sisa)} dari pemasukan ${rp(r.pemasukan)}.`);
-  if (r.pengeluaran) {
+  if (r.totalKeluar) {
     c.push(`Porsi keinginan ${Math.round((r.keinginan / (r.wajib + r.keinginan || 1)) * 100)}% dari total pengeluaran.`);
   }
   if (l.iniBulanBerjalan) {
-    c.push(`Rata-rata belanja rumah tangga ${rp(l.rata)} per hari; kalau polanya bertahan, akhir bulan sekitar ${rp(l.perkiraanAkhir)}.`);
+    c.push(`Rata-rata belanja ${daftarPos()[0]} ${rp(l.rata)} per hari; kalau polanya bertahan, akhir bulan sekitar ${rp(l.perkiraanAkhir)}.`);
   }
-  if (r.basis) c.push(`Perpuluhan ${rp(r.perpuluhan)}, saving ${rp(r.saving)}, entertain ${rp(r.entertain)}.`);
-  if (saldoSaving()) c.push(`Saldo saving berjalan ${rp(saldoSaving())}.`);
+  const t = targetPos();
+  daftarPos().forEach((k) => {
+    const p = t[k];
+    if (!p.target) return;
+    c.push(p.terpakai > p.target
+      ? `${k} lewat target ${rp(p.terpakai - p.target)}.`
+      : `${k} masih bersisa ${rp(p.sisa)} dari target ${rp(p.target)}.`);
+  });
+  progresTarget().filter((x) => x.kategori && x.terkumpul).forEach((x) => {
+    c.push(`${x.nama}: terkumpul ${rp(x.terkumpul)} dari ${rp(x.nilai)}.`);
+  });
   return c;
 }
 
@@ -87,17 +119,14 @@ function teksRingkasan(r, kat) {
   const baris = [
     `Keuangan Keluarga Gemoy — ${namaBulan(st.bulan)}`,
     '',
-    `Pemasukan     : ${rp(r.pemasukan)}`,
-    `Tagihan tetap : ${rp(r.tetap)}`,
-    `Rumah tangga  : ${rp(r.rumahTangga)}`,
-    `Sisa          : ${rp(r.sisa)}`,
-    '',
-    'Rumah tangga per kategori:'
+    `Pemasukan  : ${rp(r.pemasukan)}`
   ];
-  kat.slice(0, 8).forEach((k) => baris.push(`  ${k.kategori.padEnd(12)} ${rp(k.nominal)}`));
-  if (r.basis) {
-    baris.push('', `Perpuluhan ${rp(r.perpuluhan)} · Saving ${rp(r.saving)} · Entertain ${rp(r.entertain)}`);
-  }
+  daftarPos().forEach((k) => {
+    baris.push(`${k.replace(/\s*\d+%$/, '').padEnd(11)}: ${rp(r.pos[k] || 0)}`);
+  });
+  baris.push(`Total keluar: ${rp(r.totalKeluar)}`, `Sisa       : ${rp(r.sisa)}`, '',
+             `${daftarPos()[0]} per kategori:`);
+  kat.slice(0, 8).forEach((k) => baris.push(`  ${k.kategori.padEnd(14)} ${rp(k.nominal)}`));
   return baris.join('\n');
 }
 
@@ -149,7 +178,7 @@ async function bagikanGambar(r, kat, l) {
   c.fillText(rp(r.sisa), p + 40, 350);
 
   // Tiga angka utama
-  const kolom = [['Pemasukan', r.pemasukan], ['Tagihan tetap', r.tetap], ['Rumah tangga', r.rumahTangga]];
+  const kolom = [['Pemasukan', r.pemasukan], ['Total keluar', r.totalKeluar], [daftarPos()[0], r.harian]];
   kolom.forEach(([label, nilai], i) => {
     const x = p + i * ((L - p * 2) / 3);
     c.fillStyle = lembut; c.font = F(26, 500); c.fillText(label, x, 480);
@@ -158,7 +187,7 @@ async function bagikanGambar(r, kat, l) {
 
   // Batang kategori
   c.fillStyle = tinta; c.font = F(34, 650);
-  c.fillText('Belanja rumah tangga', p, 622);
+  c.fillText(`Belanja ${daftarPos()[0]}`, p, 622);
   const maks = Math.max(...tampil.map((k) => k.nominal), 1);
   const ramp = gelap
     ? ['#4CD4DE', '#2DB7C1', '#009BA4', '#007F88', '#00656D', '#00656D', '#00656D']
@@ -176,8 +205,8 @@ async function bagikanGambar(r, kat, l) {
 
   // Kaki
   c.fillStyle = lembut; c.font = F(24, 500);
-  const kaki = r.basis
-    ? `Perpuluhan ${rp(r.perpuluhan)}  ·  Saving ${rp(r.saving)}  ·  Entertain ${rp(r.entertain)}`
+  const kaki = r.pemasukan
+    ? daftarPos().map((k) => `${k.replace(/\s*\d+%$/, '')} ${rpSingkat(r.pos[k] || 0)}`).join('  ·  ')
     : `${r.jumlah} transaksi tercatat`;
   c.fillText(kaki, p, T - 56);
   if (l.iniBulanBerjalan) {

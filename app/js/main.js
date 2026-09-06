@@ -30,7 +30,11 @@ const akar = document.getElementById('akar');
 
 // ---------------------------------------------------------------- gerbang --
 
-function layarSetup() {
+/**
+ * @param {{judul?: string, pesan?: string}} opsi Dipakai juga saat alamat yang
+ *   tersimpan ternyata masih menunjuk Sheet lama — lihat alamatnyaSheetLama().
+ */
+function layarSetup(opsi = {}) {
   const kotak = h('input', {
     type: 'url', value: urlApi(),
     placeholder: 'https://script.google.com/macros/s/…/exec'
@@ -38,8 +42,9 @@ function layarSetup() {
   return h('div.gerbang',
     h('div.kaca.kotak',
       h('img', { src: 'ikon/kkg.svg', alt: '' }),
-      h('h1', 'Halo!'),
+      h('h1', opsi.judul || 'Halo!'),
       h('p.kecil.lembut', { gaya: { margin: '8px 0 18px' } },
+        opsi.pesan ||
         'Sekali saja: tempel alamat Web App Apps Script yang menempel di Google Sheet keluarga Anda.'),
       h('div.isian', kotak),
       h('button.tombol.utama.lebar', {
@@ -198,6 +203,21 @@ async function mulai() {
   try {
     await kirimAntrian();
     const data = await muatAwal(geserBulan(bulanIni(), -13));
+    // Alamat yang tersimpan di HP ini masih menunjuk Apps Script Sheet lama.
+    // Tanpa pemeriksaan ini yang muncul adalah aplikasi yang terbuka tapi
+    // kosong melompong — tidak ada kategori, tidak ada pos, dan tidak ada
+    // petunjuk apa pun kenapa. Menebaknya sekali di sini jauh lebih murah
+    // daripada membiarkan orang serumah menebaknya sendiri.
+    if (alamatnyaSheetLama(data)) {
+      kosongkan(akar);
+      akar.appendChild(layarSetup({
+        judul: 'Alamatnya sudah pindah',
+        pesan: 'Aplikasi ini sekarang membaca Google Sheet yang baru, tapi HP ini masih ' +
+               'menyimpan alamat Apps Script yang lama. Tempel alamat /exec yang baru ' +
+               'sekali saja, lalu masuk lagi dengan PIN.'
+      }));
+      return;
+    }
     terapkanMuatan(data);
     gambar();
   } catch (e) {
@@ -213,6 +233,15 @@ async function mulai() {
     roti(e instanceof GagalJaringan ? 'Luring — menampilkan data terakhir' : e.message);
   }
   perbaruiAntrian();
+}
+
+/**
+ * Jawaban dari Apps Script versi lama tidak punya daftar pilihan dari tab
+ * PILIHAN. Itu penanda paling murah bahwa alamatnya salah — bukan tebakan dari
+ * bentuk URL-nya, melainkan dari apa yang benar-benar dijawab server.
+ */
+function alamatnyaSheetLama(data) {
+  return !!data && !data.profil?.pilihan?.kelompok?.length;
 }
 
 async function perbaruiAntrian() {

@@ -140,7 +140,15 @@
   border-radius: var(--r-sedang); padding: 13px 14px;
 }
 .petak .sel .k { font-size: 11.5px; color: var(--tinta-lembut); }
-.petak .sel .v { font-size: 19px; font-weight: 700; margin-top: 3px; }
+/* Angka penuh seperti "Rp35.434.330" tidak muat di setengah lebar layar 320px
+   dengan huruf 19px, dan meluber diam-diam keluar kartunya. Ukurannya ikut
+   lebar layar sampai batas bawah yang masih terbaca, bukan dipotong. */
+.petak .sel .v {
+  font-size: clamp(14px, 4.4vw, 19px);
+  font-weight: 700;
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
 .petak .sel .n { font-size: 11px; color: var(--tinta-samar); margin-top: 2px; }
 
 /* ----------------------------------------------------------------- daftar */
@@ -534,6 +542,33 @@ body.kunci-gulir { position: fixed; left: 0; right: 0; overflow: hidden; }
 /* Kategori yang disisihkan tapi masih ada belanjanya bulan ini. Tetap terbaca
    penuh — angkanya masih ikut total — hanya diredupkan supaya jelas ia bukan
    bagian dari pagu yang sedang dijalankan. */
+/* Keterangan di bawah batang: target di kiri, sisa di kanan. Dipakai kartu
+   empat pos dan kartu target di Beranda. */
+.pagu .ket {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--tinta-lembut);
+}
+.pagu .ket .kanan { text-align: right; }
+
+/* Pos yang sedang dibuka rinciannya. Tanpa penanda ini, mengetuk sebuah pos
+   tidak kelihatan mengubah apa pun — daftar di bawahnya berganti diam-diam. */
+.pagu.terpilih { position: relative; }
+.pagu.terpilih::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--tosca);
+}
+.pagu.terpilih .atas .nama { color: var(--tosca); }
+
 .pagu.arsip .atas .nama { color: var(--tinta-lembut); }
 .pagu.arsip .jalur { opacity: 0.45; }
 .chip.arsip { border-style: dashed; color: var(--tinta-samar); }
