@@ -20,9 +20,14 @@ export function butuhKelompok(jenis) {
 
 /**
  * @param {object|null} awal Transaksi yang mau diubah, atau null untuk baru.
- * @param {{mode?: string, baris?: Array}} opsi Pembuka dari layar lain. Daftar
- *   Belanja memakainya untuk membuka mode banyak dengan barang yang tadi
- *   dicentang sudah terisi sebagai baris — tinggal isi harganya.
+ * @param {{mode?: string, baris?: Array, prasetel?: object}} opsi Pembuka dari
+ *   layar lain. Daftar Belanja memakai `baris` untuk membuka mode banyak dengan
+ *   barang yang tadi dicentang sudah terisi — tinggal isi harganya. Layar Target
+ *   memakai `prasetel` untuk mengisi Jenis, Kelompok, dan Kategori di muka.
+ *
+ *   `prasetel` sengaja tidak lewat `awal`: `awal` juga berarti "ini mode ubah",
+ *   yang mengganti judul sheet jadi "Ubah catatan" dan menyembunyikan sakelar
+ *   Satu/Banyak. Catatan baru yang kebetulan sudah terisi bukan catatan lama.
  */
 export function bukaTambah(awal = null, opsi = {}) {
   if (awal?.kunci) {
@@ -44,7 +49,8 @@ export function bukaTambah(awal = null, opsi = {}) {
     milik: awal?.milik || 'Bersama',
     sifat: awal?.sifat || 'KEINGINAN',
     tanggal: awal?.tanggal || hariIni(),
-    catatan: awal?.catatan || ''
+    catatan: awal?.catatan || '',
+    ...(opsi.prasetel || {})
   };
 
   const tutup = sheet(awal ? 'Ubah catatan' : 'Catat transaksi', (tutupSheet, badan) => {

@@ -1,6 +1,6 @@
 import { h, roti, kosongkan } from '../ui.js';
 import { rp, rpSingkat, namaBulan, geserBulan } from '../rupiah.js';
-import { st, ringkas, perKategori, laju, daftarPos, targetPos, progresTarget } from '../toko.js';
+import { st, ringkas, perKategori, laju, daftarPos, targetPos, daftarTarget } from '../toko.js';
 import { tabelKategori, batangSifat } from '../grafik.js';
 
 export function laporan() {
@@ -110,8 +110,10 @@ function catatan(r, lalu, l) {
       ? `${k} lewat target ${rp(p.terpakai - p.target)}.`
       : `${k} masih bersisa ${rp(p.sisa)} dari target ${rp(p.target)}.`);
   });
-  progresTarget().filter((x) => x.kategori && x.terkumpul).forEach((x) => {
-    c.push(`${x.nama}: terkumpul ${rp(x.terkumpul)} dari ${rp(x.nilai)}.`);
+  daftarTarget().filter((x) => x.kategori && x.terkumpul).forEach((x) => {
+    c.push(x.jenis === 'utang'
+      ? `${x.nama}: sudah dilunasi ${rp(x.terkumpul)}, sisa ${rp(x.sisa)}.`
+      : `${x.nama}: terkumpul ${rp(x.terkumpul)} dari ${rp(x.nilai)}.`);
   });
   return c;
 }

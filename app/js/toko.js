@@ -10,6 +10,7 @@
 
 import { lokal } from './simpanan.js';
 import { bulanIni, hariIni, jumlahHari, geserBulan } from './rupiah.js';
+import { susunTarget } from './target.js';
 
 export const PENANDA_RUTIN = '#rutin:';
 
@@ -407,13 +408,6 @@ const TARGET_KE_KATEGORI = {
   'kpr tahap 2': 'KPR'
 };
 
-/** Total yang pernah dialokasikan ke sebuah kategori, sepanjang riwayat. */
-export function terkumpulKategori(nama) {
-  return st.transaksi
-    .filter((t) => t.kategori === nama && t.kelompok !== netral())
-    .reduce((n, t) => n + t.nominal, 0);
-}
-
 /** Total yang pernah masuk sebuah pos, sepanjang riwayat. */
 export function terkumpulPos(kelompok) {
   return st.transaksi
@@ -422,28 +416,35 @@ export function terkumpulPos(kelompok) {
 }
 
 /**
- * Target rupiah dari tab `TARGET`, lengkap dengan berapa yang sudah terkumpul.
- * Target bulanan dihitung dari bulan yang sedang dilihat, target total dari
- * seluruh riwayat — sama seperti maksud kolomnya di DASHBOARD.
+ * Target rupiah dari tab `TARGET`, lengkap dengan kemajuannya masing-masing.
+ * Cara membacanya berbeda per periode — bulanan, tahunan, cicilan, saldo utang,
+ * atau target total — dan aturannya tinggal di `target.js` supaya bisa diuji
+ * dari Node. Lihat `tools/uji_target.js`.
+ *
+ * Kelompok netral dibuang di sini, bukan di sana: pembayaran tagihan kartu
+ * kredit berkelompok `Transfer / Tidak dihitung` dan bukan setoran ke target.
  */
-export function progresTarget(bulan = st.bulan) {
-  return (st.profil.target?.rupiah || []).map((t) => {
-    const kategori = TARGET_KE_KATEGORI[String(t.nama).toLowerCase()] || null;
-    const bulanan = /bulan/i.test(t.periode || '');
-    let terkumpul = 0;
-    if (kategori) {
-      terkumpul = bulanan
-        ? transaksiBulan(bulan).filter((x) => x.kategori === kategori)
-            .reduce((n, x) => n + x.nominal, 0)
-        : terkumpulKategori(kategori);
-    }
-    return {
-      nama: t.nama, nilai: t.nilai, periode: t.periode, keterangan: t.keterangan,
-      kategori, bulanan, terkumpul,
-      sisa: Math.max(t.nilai - terkumpul, 0),
-      persen: t.nilai ? Math.min((terkumpul / t.nilai) * 100, 100) : 0
-    };
-  });
+export function daftarTarget(bulan = st.bulan) {
+  const baris = (st.profil.target?.rupiah || []).map((t) => ({
+    nama: t.nama, nilai: t.nilai, periode: t.periode, keterangan: t.keterangan,
+    kategori: TARGET_KE_KATEGORI[String(t.nama).toLowerCase()] || null
+  }));
+  const dihitung = st.transaksi.filter((t) => t.kelompok !== netral());
+  return susunTarget(baris, dihitung, bulan);
+}
+
+/** Kategori yang dipakai target mana pun — dipakai menyaring daftar setoran. */
+export function kategoriTarget() {
+  return new Set(Object.values(TARGET_KE_KATEGORI));
+}
+
+/** Setoran ke target mana pun, terbaru lebih dulu. */
+export function setoranTarget(batas = 8) {
+  const kat = kategoriTarget();
+  return st.transaksi
+    .filter((t) => kat.has(t.kategori) && t.kelompok !== netral())
+    .sort((a, b) => String(b.tanggal).localeCompare(String(a.tanggal)))
+    .slice(0, batas);
 }
 
 // -------------------------------------------------------------------- rutin --

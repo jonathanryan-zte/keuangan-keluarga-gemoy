@@ -2,10 +2,12 @@ import { h, ikon } from '../ui.js';
 import { rp, rpSingkat, desimal, namaBulan, tanggalPanjang, bulanIni, geserBulan } from '../rupiah.js';
 import {
   st, ringkas, perKategori, laju, transaksiBulan, jatuhTempoDekat,
-  belanjaAktif, daftarPos, targetPos, terkumpulPos, progresTarget
+  belanjaAktif, daftarPos, targetPos, terkumpulPos, daftarTarget
 } from '../toko.js';
 import { batangKategori, garisTren, batangSifat } from '../grafik.js';
+import { urutMendesak } from '../target.js';
 import { bukaTambah } from './tambah.js';
+import { lencanaTarget, kiriTarget, kananTarget } from './target.js';
 import { barisTransaksi } from './riwayat.js';
 
 export function beranda() {
@@ -176,26 +178,34 @@ function kartuPos() {
   );
 }
 
-/** Target rupiah dari tab TARGET: renovasi, utang, trip, travel, KPR. */
+/**
+ * Ringkasan target — tiga yang paling perlu dilihat bulan ini, bukan keenamnya.
+ * Enam batang berjajar di Beranda membuat kartu ini setinggi layar sendiri,
+ * dan tidak satu pun dari enam itu jadi lebih mudah dibaca. Sisanya, beserta
+ * tombol setornya, ada di layar Target — yang hanya bisa dibuka dari sini.
+ */
 function kartuTarget() {
-  const daftar = progresTarget();
-  if (!daftar.length) return null;
+  const hidup = urutMendesak(daftarTarget())
+    .filter((t) => t.tahap !== 'berikutnya' && t.tahap !== 'selesai');
+  if (!hidup.length) return null;
+
   return h('div.kaca.kartu',
     h('div.kepala-kartu', h('h2', 'Target keluarga')),
-    daftar.map((t) => h('div.pagu',
+    hidup.slice(0, 3).map((t) => h('div.pagu',
       h('div.atas',
         h('span.nama', t.nama),
-        t.kategori ? null : h('span.lencana.netral', 'belum terhubung'),
-        h('span.rp.angka', rpSingkat(t.nilai))
+        h('span.lencana.tosca', lencanaTarget(t)),
+        h('span.rp.angka', rpSingkat(t.jenis === 'cicilan' ? t.komitmen : t.nilai))
       ),
       h('div.jalur', h('div.isi.aman', { gaya: { width: `${t.persen}%` } })),
       h('div.ket',
-        h('span', t.kategori
-          ? `Terkumpul ${rpSingkat(t.terkumpul)}${t.bulanan ? ' bulan ini' : ''}`
-          : 'Belum ada kategori yang dipetakan ke target ini'),
-        h('span.kanan', t.kategori ? `Sisa ${rpSingkat(t.sisa)}` : (t.periode || ''))
+        h('span', kiriTarget(t)),
+        h('span.kanan', kananTarget(t))
       )
-    ))
+    )),
+    h('a.tombol.hantu.lebar', { href: '#target', gaya: { marginTop: '12px' } },
+      ikon('target', 17),
+      hidup.length > 3 ? `Semua ${hidup.length} target` : 'Buka layar Target')
   );
 }
 

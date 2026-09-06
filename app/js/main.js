@@ -10,6 +10,7 @@ import { anggaran } from './layar/anggaran.js';
 import { rutin } from './layar/rutin.js';
 import { belanja } from './layar/belanja.js';
 import { laporan } from './layar/laporan.js';
+import { target } from './layar/target.js';
 import { pengaturan } from './layar/pengaturan.js';
 
 const LAYAR = {
@@ -22,6 +23,10 @@ const LAYAR = {
   // cuma tidak berguna, tapi menyesatkan, seolah daftarnya berganti tiap bulan.
   belanja: { judul: 'Belanja', ikon: 'keranjang', buat: belanja, tanpaBulan: true },
   laporan: { judul: 'Laporan', ikon: 'laporan', buat: laporan },
+  // Tidak punya slot di bilah bawah maupun ikon di kepala: tiga ikon kepala
+  // sudah menyisakan ±60px untuk judul di layar 320px (lihat app.css), dan yang
+  // keempat menghabiskannya. Masuknya lewat kartu "Target keluarga" di Beranda.
+  target: { judul: 'Target', ikon: 'target', buat: target },
   pengaturan: { judul: 'Pengaturan', ikon: 'gigi', buat: pengaturan, tanpaBulan: true }
 };
 const NAV = ['beranda', 'riwayat', null, 'anggaran', 'rutin'];

@@ -99,6 +99,32 @@ sekali, dan yang menang adalah baris di `INPUT TRANSAKSI`.
 
 ---
 
+## Menyetor ke target keluarga
+
+Tab `TARGET` memuat enam target rupiah — trip bulanan, travel tahunan, renovasi,
+saldo utang, dan dua tahap KPR. Aplikasi membacanya apa adanya dan tidak pernah
+menulis balik ke tab itu; kalau angkanya berubah, ubah di Sheet.
+
+Setorannya dicatat dari layar **Target**, yang dibuka lewat kartu "Target
+keluarga" di Beranda. Tombol **Setor ke target ini** membuka form catat dengan
+Jenis `Alokasi Tujuan`, Kelompok, dan Kategori sudah terisi — tiga pilihan yang
+harus tepat, dan justru karena harus tepat itulah selama ini tidak pernah ada
+setoran yang tercatat.
+
+Empat kategorinya (`Keluar Kota Bulanan`, `Luar Negeri Tahunan`,
+`Renovasi Atap & Kitchen Set`, `Hutang Kakak Suami`) memang tidak ada di
+dropdown `PILIHAN`; aplikasi menyediakannya sendiri lewat tab `KKG Kategori`.
+Kategori `KPR` datang dari `PILIHAN` dan tidak punya saran pos, jadi Kelompoknya
+tinggal dipilih sendiri saat mencatat — atau dikunci sekali lewat layar Anggaran,
+yang menuliskannya ke `KKG Kategori`.
+
+**Kolom `Trip Kota`, `Travel LN`, `Renovasi`, `Bayar Utang`, dan `KPR` di
+`REKAP BULANAN` terisi sendiri** begitu setoran tercatat — tapi hanya kalau
+`tab_tulis` sudah `INPUT TRANSAKSI` (langkah 2). Rumus di kolom itu menjumlah
+`INPUT TRANSAKSI`, dan tidak melihat tab `KKG Transaksi`.
+
+---
+
 ## 3. Terbitkan Web App (3 menit)
 
 1. Di editor Apps Script, klik **Deploy → New deployment**.

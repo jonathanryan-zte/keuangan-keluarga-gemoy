@@ -91,6 +91,9 @@
 .aksi {
   font-size: 13px; color: var(--tosca); font-weight: 600;
   white-space: nowrap; flex: none;
+  /* Dipakai sebagai <button> maupun <a> — kartu Target di Beranda menautkan
+     ke layar Target. Yang menentukan tampilannya kelasnya, bukan tagnya. */
+  text-decoration: none;
 }
 .kartu .kepala-kartu .aksi { margin-left: auto; }
 /* Di dalam baris daftar, .aksi berdiri sendiri sebagai tombol — perlu bidang
@@ -508,6 +511,9 @@ body.kunci-gulir { position: fixed; left: 0; right: 0; overflow: hidden; }
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   padding: 13px 18px; border-radius: var(--r-kecil); font-weight: 650;
   font-size: 15px; min-height: 46px; transition: transform 0.12s ease, opacity 0.12s;
+  /* Sebagian tombol sebenarnya tautan antar-layar; garis bawah bawaan <a>
+     merusak bentuknya. */
+  text-decoration: none; color: inherit;
 }
 .tombol:active { transform: scale(0.985); }
 .tombol.utama { background: var(--claude); color: #fff; box-shadow: 0 8px 20px -8px rgba(217,119,87,0.85); }
@@ -589,6 +595,18 @@ body.kunci-gulir { position: fixed; left: 0; right: 0; overflow: hidden; }
 
 .pagu.arsip .atas .nama { color: var(--tinta-lembut); }
 .pagu.arsip .jalur { opacity: 0.45; }
+
+/* Baris aksi di dalam satu target (layar Target). Tombolnya ringkas — enam
+   target berjajar, dan tombol setinggi 46px membuat kartunya sepanjang layar
+   sendiri. Yang boleh terpotong nama kategorinya, bukan tombolnya: nama itu
+   toh muncul lagi di form yang terbuka. */
+.pagu .aksi-target { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.pagu .aksi-target .tombol {
+  flex: none; padding: 9px 14px; min-height: 38px; font-size: 13px; border-radius: 999px;
+}
+.pagu .aksi-target .kat {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .chip.arsip { border-style: dashed; color: var(--tinta-samar); }
 .chip.arsip.aktif { border-style: solid; color: #fff; }
 
