@@ -11,7 +11,11 @@ import { barisTransaksi } from './riwayat.js';
 export function beranda() {
   const r = ringkas();
   const l = laju();
-  const kat = perKategori();
+  // Kartunya berjudul pos harian dan angka kepalanya angka pos harian, jadi
+  // batangnya harus pos itu juga. Tanpa saringan ini, kepalanya menulis
+  // Rp1.966.480 sementara batang di bawahnya memajang Investasi Rp7.200.000
+  // dari pos Saving — dua ukuran berbeda dalam satu kartu.
+  const kat = perKategori(st.bulan, daftarPos()[0]);
   const tempo = jatuhTempoDekat(7);
   const belanja = belanjaAktif();
 

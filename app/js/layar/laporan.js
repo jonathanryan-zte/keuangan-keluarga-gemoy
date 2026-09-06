@@ -6,7 +6,8 @@ import { tabelKategori, batangSifat } from '../grafik.js';
 export function laporan() {
   const r = ringkas();
   const lalu = ringkas(geserBulan(st.bulan, -1));
-  const kat = perKategori();
+  // Sepos dengan judulnya, dan dengan gambar ringkasan yang dibagikan.
+  const kat = perKategori(st.bulan, daftarPos()[0]);
   const l = laju();
 
   return h('div.papan.dua',
