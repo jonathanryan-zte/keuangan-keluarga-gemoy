@@ -196,8 +196,14 @@ const TARGET = [
   ['Harian', 0.4, 'Bulanan', '40% dari pemasukan'],
   ['Perpuluhan/Sosial', 0.1, 'Bulanan', '10% dari pemasukan'],
   ['Kegiatan Luar', 0.2, 'Bulanan', '20% dari pemasukan'],
+  // Enam baris rupiah, urut seperti di sheet. Urutannya berarti: dua baris KPR
+  // adalah tahap yang berurutan, dan tahap 1 harus lebih dulu.
+  ['Trip luar kota', 2000000, 'Bulanan', 'Target ± Rp2 juta'],
+  ['Travel luar negeri', 25000000, 'Tahunan', 'Bisa diubah Rp20–30 juta'],
   ['Renovasi atap + kitchen set', 150000000, 'Target total', ''],
-  ['Utang kakak suami', 138500000, 'Saldo awal', '']
+  ['Utang kakak suami', 138500000, 'Saldo awal', ''],
+  ['KPR tahap 1', 2200000, '60 bulan', '5 tahun'],
+  ['KPR tahap 2', 2700000, '120 bulan', '10 tahun berikutnya']
 ];
 
 function pasangBukuBaru() {
@@ -286,7 +292,12 @@ cek('empat jenis', profil.pilihan.jenis.length, 4);
 cek('lima kelompok', profil.pilihan.kelompok.length, 5);
 cek('persen Saving dari TARGET', profil.target.pos['Saving 30%'], 30);
 cek('persen Harian dari TARGET', profil.target.pos['Harian 40%'], 40);
-cek('target rupiah terbaca', profil.target.rupiah.length, 2);
+cek('enam target rupiah terbaca', profil.target.rupiah.length, 6);
+// Kolom Periode harus sampai utuh ke aplikasi: di sanalah cicilan dibedakan
+// dari target bulanan. Lihat tools/uji_target.mjs.
+cek('periode ikut terbawa apa adanya',
+  profil.target.rupiah.map((t) => t.periode),
+  ['Bulanan', 'Tahunan', 'Target total', 'Saldo awal', '60 bulan', '120 bulan']);
 cek('empat kategori nyangkut disediakan',
   ['Keluar Kota Bulanan', 'Luar Negeri Tahunan', 'Renovasi Atap & Kitchen Set', 'Hutang Kakak Suami']
     .every((k) => profil.kategori.indexOf(k) >= 0), true);

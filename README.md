@@ -72,6 +72,7 @@ seperti di HP.
 
 | Perintah / berkas | Gunanya |
 |---|---|
+| `node tools/uji_target.mjs` | Menguji pembacaan tab `TARGET`: `"60 bulan"` harus jadi cicilan dan bukan target bulanan, target tahunan dibatasi tahun takwim, saldo utang mengecil alih-alih membesar, dan dua tahap KPR yang berbagi kategori `KPR` tidak menghitung satu pembayaran dua kali. |
 | `node tools/uji_hitung.js` | Menjalankan otak Apps Script di Node dengan spreadsheet yang dipalsukan, memakai baris September 2026 yang sungguhan, lalu mencocokkan hasilnya dengan baris Sep-26 di `REKAP BULANAN`. Jalankan setiap kali `Kode.gs` atau `Ringkasan.gs` disentuh. |
 | `tools/deploy.sh "keterangan"` | Kirim `apps-script/` ke proyek Apps Script, buat versi baru, dan arahkan deployment yang sama ke sana — jadi URL `/exec` di HP tidak berubah. |
 | `tools/uji_push.html` | Uji bolak-balik enkripsi Web Push (RFC 8291) dan tanda tangan VAPID. Butuh server lokal karena memakai modul ES. |
@@ -118,6 +119,27 @@ seperti di HP.
 - **Persentase empat pos dibaca dari tab `TARGET`, dan tidak bisa diubah dari
   aplikasi.** Menyediakan dua tempat untuk mengubah angka yang sama adalah cara
   tercepat membuat keduanya berselisih.
+- **Kolom `Periode` di tab `TARGET` dibaca menurut artinya, bukan menurut kata
+  yang kebetulan ada di dalamnya.** Enam barisnya memakai lima arti yang
+  berbeda — `Bulanan`, `Tahunan`, `Target total`, `Saldo awal`, dan `60 bulan`
+  yang berarti cicilan 60 kali, bukan setoran bulanan. Yang paling licin justru
+  yang terakhir: ia juga memuat kata "bulan", nilainya pun kebetulan sebesar
+  setoran bulanan yang masuk akal, jadi salah membacanya tidak akan berbunyi.
+  Aturannya tinggal di `app/js/target.js`, terpisah dari `toko.js`, semata agar
+  bisa diuji dari Node.
+- **Saldo utang dilunasi, bukan dikumpulkan.** Rp138,5 juta di baris "Utang
+  kakak suami" adalah saldo yang harus habis. Layar Target menulisnya begitu —
+  "sudah dilunasi X, sisa utang Y" — bukan meminjam kalimat menabung.
+- **Dua tahap KPR berbagi satu kategori, dan itu ditangani terbuka.** `KPR tahap
+  1` (60×) dan `KPR tahap 2` (120×) sama-sama dicatat ke kategori `KPR`. Kalau
+  tiap baris menghitung sendiri, satu pembayaran muncul di keduanya. Jadi
+  tahapnya ditelusuri berurutan: angsuran ke-1..60 milik tahap 1, ke-61..180
+  milik tahap 2, dan hanya tahap yang sedang berjalan yang memajang tagihan
+  bulan ini.
+- **Layar Target tidak punya slot navigasi sendiri.** Tiga ikon di kepala sudah
+  menyisakan sekitar 60px untuk judul layar di HP 320px; yang keempat
+  menghabiskannya. Jadi masuknya lewat kartu "Target keluarga" di Beranda —
+  kartu itu memajang tiga target yang paling mendesak, bukan keenamnya.
 - **Daftar kategori punya dua sumber yang jelas pembagiannya.** Kolom Kategori
   di tab `PILIHAN` milik Ryan dan tidak pernah disentuh skrip. Tab
   `KKG Kategori` hanya menambahi: kategori baru, saran pos untuk sebuah
